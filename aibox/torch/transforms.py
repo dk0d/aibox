@@ -5,10 +5,12 @@ except ImportError:
     print("pytorch required for these utilities")
     exit(1)
 
+import numpy as np
+
 
 class TensorImageToNumpy:
     def __init__(self, denorm=True):
-        """Transforms a CHW tensor to numpy image. 
+        """Transforms a CHW tensor to numpy image.
 
         Args:
             denorm (bool, optional): Flag to denormalize image. Assumes _. Defaults to True.
