@@ -46,32 +46,32 @@ class AIBoxCLI:
             default=None,
         )
 
-    def add_linked_properties(self, p1: str, p2: str, default: Any):
+    def add_linked_properties(self, source: str, other: str, default: Any):
         """links two config entries
-        assumes the second is the priority. if no value is set, default is used. if default is set to None,
+        assumes the first is the priority. if no value is set, default is used. if default is set to None,
         nothing will be set when finding p2 doesn't exist or is already set to None
 
         Args:
-            p1 (_type_): dot key
-            p2 (_type_): dot key
+            source (_type_): dot key
+            other (_type_): dot key
             default (_type_): default value
         """
-        self.linked.append((p1, p2, default))
+        self.linked.append((source, other, default))
 
     def resolve_linked_props(self, config):
-        for p1, p2, default in self.linked:
-            p1Val = OmegaConf.select(config, p1, default=None)
-            p2Val = OmegaConf.select(config, p2, default=None)
+        for src, other, default in self.linked:
+            srcVal = OmegaConf.select(config, src, default=None)
+            otherVal = OmegaConf.select(config, other, default=None)
 
-            if p2Val is None and default is None:
+            if srcVal is None and default is None:
                 continue
-            elif p2Val is None:
-                OmegaConf.update(config, p2, default, force_add=True)
+            elif srcVal is None:
+                OmegaConf.update(config, src, default, force_add=True)
 
-            if p1Val is None or p1Val != p2Val:
+            if otherVal is None or srcVal != otherVal:
                 OmegaConf.update(
-                    config, p1, OmegaConf.select(config, p2), force_add=True
-                )
+                    config, other, OmegaConf.select(config, src), force_add=True
+                
 
     def parse_args(self, args=None) -> OmegaConf:
         args, unk = self.parser.parse_known_args(args)
