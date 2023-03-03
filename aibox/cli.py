@@ -56,19 +56,19 @@ class AIBoxCLI:
             "-d",
             "--defaults",
             action=PathAction,
-            default=None,
+            default=cwd('configs/default.toml'),
         )
         self.parser.add_argument(
             "-ed",
             "--exp_dir",
             action=PathAction,
-            default=None,
+            default=cwd("configs/experiments"),
         )
         self.parser.add_argument(
             "-md",
             "--models_dir",
             action=PathAction,
-            default=None,
+            default=cwd("configs/models"),
         )
 
     def add_argument(self, *args, **kwargs):
@@ -101,11 +101,9 @@ class AIBoxCLI:
                     config, other, OmegaConf.select(config, src), force_add=True
                 )
 
-    def parse_args(self, args=None) -> OmegaConf:
-        args, unk = self.parser.parse_known_args(args)
-        cli_config = OmegaConf.from_dotlist([f"{k}={v}" for k, v in vars(args).items()])
-        if len(unk) > 0:
-            _unk = [u.split("=") for u in unk]
+    def _args_to_config(self, args: Namespace | list):
+        if isinstance(args, list):
+            _unk = [u.split("=") for u in args]
             unk = []
             for u in _unk:
                 unk.extend(u)
@@ -116,32 +114,36 @@ class AIBoxCLI:
                 raise CLIException(
                     "Only key-value pair arguments are supported for OmegaConf"
                 )
-            cli_config = OmegaConf.merge(
-                cli_config,
-                OmegaConf.from_dotlist(
-                    [f"{k.lstrip('-')}={v}" for k, v in _chunk(unk, 2)]
-                ),
-            )
-        config_dir = args.config_dir
-        defaults_path = (
-            config_dir / "default.toml" if args.defaults is None else args.defaults
-        )
-        exp_dir = config_dir / "experiments" if args.exp_dir is None else args.exp_dir
-        models_dir = (
-            config_dir / "models" if args.models_dir is None else args.models_dir
-        )
+            args = {k: v for k, v in _chunk(unk, 2)}
+        else:
+            args = vars(args)
+        dotlist = [f"{k.lstrip('-')}={v}" for k, v in args.items()]
+        conf = OmegaConf.from_dotlist(dotlist)
+        # Ensure None values instead of a string 'None'
+        for k, v in args.items():
+            if v is not None:
+                continue
+            OmegaConf.update(conf, k, None, force_add=True)
+        return conf
+
+    def parse_args(self, args=None) -> OmegaConf:
+        args, unk = self.parser.parse_known_args(args)
+        cli_config = self._args_to_config(args)
+        if len(unk) > 0:
+            cli_config = OmegaConf.merge(cli_config, self._args_to_config(unk))
+
         try:
-            defaults_config = config_from_toml(defaults_path)
+            defaults_config = config_from_toml(cli_config.defaults)
         except:
             defaults_config = OmegaConf.from_dotlist([])
 
         try:
-            model_config = config_from_toml(models_dir / f"{args.model_name}.toml")
+            model_config = config_from_toml(args.models_dir / f"{args.model_name}.toml")
         except:
             model_config = OmegaConf.from_dotlist([])
 
         try:
-            experiment_config = config_from_toml(exp_dir / f"{args.exp_name}.toml")
+            experiment_config = config_from_toml(args.exp_dir / f"{args.exp_name}.toml")
         except:
             experiment_config = OmegaConf.from_dotlist([])
 

@@ -1,0 +1,21 @@
+### DEBUGGING
+debug = true 
+
+[model.args]
+condition_classes = 1
+
+[data.args]
+image_size = 128
+recache = true
+dataset = 'refics'
+n_channels = 1
+batch_size = 128
+random_augmentations = true
+
+[trainer]
+precision = 32
+
+# Slurm overrides for debugging
+[slurm]
+cpus_per_task = 2
+mem_per_cpu = '4gb'
