@@ -11,6 +11,10 @@ def ExpandedPathType(s):
     return Path(s).expanduser().resolve()
 
 
+def cwd(path: str):
+    return ExpandedPathType(Path.cwd() / path)
+
+
 class AIBoxCLI:
     def __init__(self) -> None:
         self.parser = ArgumentParser()
@@ -22,10 +26,10 @@ class AIBoxCLI:
         self.parser.add_argument("-m", "--model_name", type=str)
         self.parser.add_argument("-c", "--config", type=str)
         self.parser.add_argument(
-            "-cd", "--config_dir", type=ExpandedPathType, default=Path.cwd() / "configs"
+            "-cd", "--config_dir", type=ExpandedPathType, default=cwd("configs")
         )
         self.parser.add_argument(
-            "-l", "--log_dir", type=ExpandedPathType, default=Path.cwd() / "logs"
+            "-l", "--log_dir", type=ExpandedPathType, default=cwd("logs")
         )
         self.parser.add_argument(
             "-d",
@@ -72,7 +76,6 @@ class AIBoxCLI:
                 OmegaConf.update(
                     config, other, OmegaConf.select(config, src), force_add=True
                 )
-                
 
     def parse_args(self, args=None) -> OmegaConf:
         args, unk = self.parser.parse_known_args(args)
