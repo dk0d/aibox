@@ -71,6 +71,7 @@ class AIBoxCLI:
             if otherVal is None or srcVal != otherVal:
                 OmegaConf.update(
                     config, other, OmegaConf.select(config, src), force_add=True
+                )
                 
 
     def parse_args(self, args=None) -> OmegaConf:
