@@ -1,6 +1,6 @@
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Action, Namespace
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 from omegaconf import OmegaConf
 
@@ -15,6 +15,17 @@ def cwd(path: str):
     return ExpandedPathType(Path.cwd() / path)
 
 
+class PathAction(Action):
+    def __call__(
+        self,
+        parser: ArgumentParser,
+        namespace: Namespace,
+        values: str | Sequence[Any] | None,
+        option_string: str | None = None,
+    ) -> None:
+        setattr(namespace, self.dest, ExpandedPathType(values))
+
+
 class AIBoxCLI:
     def __init__(self) -> None:
         self.parser = ArgumentParser()
@@ -26,27 +37,27 @@ class AIBoxCLI:
         self.parser.add_argument("-m", "--model_name", type=str)
         self.parser.add_argument("-c", "--config", type=str)
         self.parser.add_argument(
-            "-cd", "--config_dir", type=ExpandedPathType, default=cwd("configs")
+            "-cd", "--config_dir", action=PathAction, default=cwd("configs")
         )
         self.parser.add_argument(
-            "-l", "--log_dir", type=ExpandedPathType, default=cwd("logs")
+            "-l", "--log_dir", action=PathAction, default=cwd("logs")
         )
         self.parser.add_argument(
             "-d",
             "--defaults",
-            type=ExpandedPathType,
+            action=PathAction,
             default=None,
         )
         self.parser.add_argument(
             "-ed",
             "--exp_dir",
-            type=ExpandedPathType,
+            action=PathAction,
             default=None,
         )
         self.parser.add_argument(
             "-md",
             "--models_dir",
-            type=ExpandedPathType,
+            action=PathAction,
             default=None,
         )
 
