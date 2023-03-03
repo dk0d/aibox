@@ -1,11 +1,15 @@
 from argparse import ArgumentParser, Action, Namespace
 from pathlib import Path
 from typing import Any, Sequence
-
+import rich
 from omegaconf import OmegaConf
+
 
 from .config import config_from_toml
 
+
+class CLIException(Exception):
+    pass
 
 def ExpandedPathType(s):
     return Path(s).expanduser().resolve()
@@ -24,6 +28,11 @@ class PathAction(Action):
         option_string: str | None = None,
     ) -> None:
         setattr(namespace, self.dest, ExpandedPathType(values))
+
+
+def _chunk(iterable, n):
+    for i in range(0, len(iterable), n):
+        yield iterable[i : i + n]
 
 
 class AIBoxCLI:
@@ -61,6 +70,9 @@ class AIBoxCLI:
             default=None,
         )
 
+    def add_argument(self, *args, **kwargs):
+        self.parser.add_argument(*args, **kwargs)
+
     def add_linked_properties(self, source: str, other: str, default: Any):
         """links two config entries
         assumes the first is the priority. if no value is set, default is used. if default is set to None,
@@ -90,7 +102,17 @@ class AIBoxCLI:
 
     def parse_args(self, args=None) -> OmegaConf:
         args, unk = self.parser.parse_known_args(args)
-        cli_config = OmegaConf.from_cli([f.lstrip("-") for f in unk])
+        cli_config = OmegaConf.from_dotlist([f"{k}={v}" for k, v in vars(args).items()])
+        if len(unk) > 0:
+            if len(unk) % 2 != 0:
+                rich.print(f'[bold red]Only key-value pair arguments are supported for OmegaConf')
+                raise CLIException("Only key-value pair arguments are supported for OmegaConf")
+            cli_config = OmegaConf.merge(
+                cli_config,
+                OmegaConf.from_dotlist(
+                    [f"{k.lstrip('-')}={v}" for k, v in _chunk(unk, 2)]
+                ),
+            )
         config_dir = args.config_dir
         defaults_path = (
             config_dir / "default.toml" if args.defaults is None else args.defaults
@@ -127,7 +149,7 @@ class AIBoxCLI:
         return config
 
 
-def cli_main():
+def cli_main(args=None):
     cli = AIBoxCLI()
 
     # Second key takes priority
@@ -138,7 +160,7 @@ def cli_main():
         "model.args.image_channels", "data.args.image_channels", default=1
     )
 
-    config = cli.parse_args()
+    config = cli.parse_args(args=args)
 
     return config
 
