@@ -31,11 +31,15 @@ torch = [
     "pytorch-lightning>=1.9.4",
 ]
 
-[tool.pdm]
+[tool.pdm.scripts]
+test = "pytest tests"
 
 [tool.pdm.build]
 package-dir = "aibox/aibox"
 includes = []
+
+[tool.pdm.dev-dependencies]
+test = ["pytest>=7.2.1"]
 
 [build-system]
 requires = ["hatchling"]
