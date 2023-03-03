@@ -1,0 +1,14 @@
+[model]
+class_path = "path.to.Class"
+
+[model.args]
+image_size = 128
+
+[trainer]
+
+[data]
+class_path = "path.to.DataModule"
+
+[data.args]
+image_size = 64
+batch_size = 128

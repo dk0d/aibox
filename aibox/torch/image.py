@@ -1,6 +1,5 @@
 try:
     import torch
-    from torchvision import transforms
 except ImportError:
     print("pytorch required for these utilities")
     exit(1)

@@ -1,7 +1,13 @@
 import importlib
 from pathlib import Path
-
 from omegaconf import OmegaConf
+
+
+def print_config(config):
+    import rich
+    import json
+
+    rich.print_json(json.dumps(OmegaConf.to_container(config)))
 
 
 # Config reading (ported from ldm module)
@@ -33,6 +39,12 @@ def build_from_cfg(config: OmegaConf | dict, *args, **kwargs):
     params = config.get("args", dict())
     params.update(**kwargs)
     return Class(*args, **params)
+
+
+def config_from_toml_stream(stream):
+    from tomlkit import loads
+
+    return OmegaConf.create(loads(stream).unwrap())
 
 
 def config_from_toml(path: Path | str) -> OmegaConf:
