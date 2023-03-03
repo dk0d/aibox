@@ -11,6 +11,7 @@ from .config import config_from_toml
 class CLIException(Exception):
     pass
 
+
 def ExpandedPathType(s):
     return Path(s).expanduser().resolve()
 
@@ -104,9 +105,17 @@ class AIBoxCLI:
         args, unk = self.parser.parse_known_args(args)
         cli_config = OmegaConf.from_dotlist([f"{k}={v}" for k, v in vars(args).items()])
         if len(unk) > 0:
+            _unk = [u.split("=") for u in unk]
+            unk = []
+            for u in _unk:
+                unk.extend(u)
             if len(unk) % 2 != 0:
-                rich.print(f'[bold red]Only key-value pair arguments are supported for OmegaConf')
-                raise CLIException("Only key-value pair arguments are supported for OmegaConf")
+                rich.print(
+                    f"[bold red]Only key-value pair arguments are supported for OmegaConf"
+                )
+                raise CLIException(
+                    "Only key-value pair arguments are supported for OmegaConf"
+                )
             cli_config = OmegaConf.merge(
                 cli_config,
                 OmegaConf.from_dotlist(

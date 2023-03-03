@@ -8,6 +8,9 @@ def test_cli_no_args():
 def test_cli_args():
     cli_main(["-c", "tests/resources/config.toml", "--model.args.name", "TESTMODEL"])
 
+def test_cli_args_dotlist():
+    cli_main(["-c", "tests/resources/config.toml", "--model.args.name=TESTMODEL"])
+
 def test_cli_bad_args():
     with pytest.raises(CLIException):
         cli_main(["-c", "tests/resources/config.toml", "--model.args.name"])
