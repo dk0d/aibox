@@ -1,7 +1,9 @@
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
+
 from omegaconf import OmegaConf
+
 from .config import config_from_toml
 
 
