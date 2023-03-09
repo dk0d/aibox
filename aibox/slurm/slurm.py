@@ -1,6 +1,5 @@
 from __future__ import print_function
 
-import argparse
 import atexit
 import datetime
 import hashlib
@@ -258,7 +257,6 @@ def write_slurm_script(
     verbose=False,
     debug=False,
 ):
-
 
     s = Slurm(
         name,

@@ -3,7 +3,7 @@ name = "aibox"
 version = "0.1.8"
 description = "My AI utilities and helpers"
 authors = [
-    # { name = "Daniel Capecci", email = "7775585+dk0d@users.noreply.github.com" },
+    { name = "Daniel Capecci", email = "7775585+dk0d@users.noreply.github.com" },
 ]
 dependencies = [
     "tomlkit>=0.11.6",
