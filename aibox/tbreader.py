@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 from pprint import pprint
-from sys import version
+from packaging import version
 from typing import Callable, List, Optional
 
 import pandas as pd
@@ -21,6 +21,14 @@ try:
             self.log_root_dir = log_root_dir
             self.allEventFiles = self._getLogsInPath(self.log_root_dir)
             # self.dataFrames = self._events2DataFrames(self.allEventFiles)
+
+
+        @property
+        def versions(self):
+            parents = list(set(p.parent.name for p in self.allEventFiles))
+            parents.sort()
+            return parents
+        
 
         def getLogs(self, path_regex_mask: Optional[str] = None) -> pd.DataFrame:
             if path_regex_mask is not None:
@@ -112,7 +120,7 @@ try:
                 if fold not in all_logs[name].keys():
                     all_logs[name][fold] = []
 
-                df = TBLogHelper._eventPath2DataFrame(path)
+                df = TBLogReader._eventPath2DataFrame(path)
 
                 if df is not None:
                     df["model"] = name
