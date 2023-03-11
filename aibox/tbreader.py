@@ -1,14 +1,19 @@
 import re
 from pathlib import Path
-from pprint import pprint
+
+# from pprint import pprint
 from packaging import version
-from typing import Callable, List, Optional
+from typing import List, Optional
+from google.protobuf import text_format
+from tensorboard.compat import tf
+import numpy as np
 
 import pandas as pd
 import tqdm
 
 try:
     from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+    from tensorboard.plugins.projector.projector_plugin import ProjectorConfig
     import tensorboard as tb
 
     class TBLogReader:
@@ -18,19 +23,90 @@ try:
                 major_ver >= 2 and minor_ver >= 3
             ), "This class requires TensorBoard 2.3 or later"
 
-            self.log_root_dir = log_root_dir
-            self.allEventFiles = self._getLogsInPath(self.log_root_dir)
+            self.log_root_dir = log_root_dir.expanduser().resolve()
+            assert (
+                self.log_root_dir.exists()
+            ), f"Log directory not found: {self.log_root_dir}"
+            self.allEventFiles = self._get_logs_in_path(self.log_root_dir)
             # self.dataFrames = self._events2DataFrames(self.allEventFiles)
-
 
         @property
         def versions(self):
             parents = list(set(p.parent.name for p in self.allEventFiles))
             parents.sort()
             return parents
-        
 
-        def getLogs(self, path_regex_mask: Optional[str] = None) -> pd.DataFrame:
+        def _get_sprite_image(run, name):
+            pass
+
+        def _read_metadata_tsv_file(self, path, num_rows: Optional[int] = None):
+            if not Path(path).is_relative_to(self.log_root_dir):
+                path = self.log_root_dir / path
+
+            num_header_rows = 0
+            with tf.io.gfile.GFile(f"{path}", "r") as f:
+                lines = []
+                # Stream reading the file with early break
+                # in case the file doesn't fit in memory.
+                for line in f:
+                    lines.append(line)
+                    if len(lines) == 1 and "\t" in lines[0]:
+                        num_header_rows = 1
+                    if (
+                        num_rows is not None
+                        and len(lines) >= num_rows + num_header_rows
+                    ):
+                        break
+
+            return "".join(lines)
+
+        def _read_tensor_tsv_file(self, path):
+            """Ported from tensorboard ProjectorPlugin._read_tensor_tsv_file(fpath)
+
+            Args:
+                path (_type_): _description_
+            """
+            if not Path(path).is_relative_to(self.log_root_dir):
+                path = self.log_root_dir / path
+
+            with tf.io.gfile.GFile(f"{path}", "r") as f:
+                tensor = []
+                for line in f:
+                    line = line.rstrip("\n")
+                    if line:
+                        tensor.append(list(map(float, line.split("\t"))))
+            return np.array(tensor, dtype="float32")
+
+        def get_embeddings(self, version: Optional[str] = None):
+            if version is None:
+                projector_configs = list(self.log_root_dir.rglob("*.pbtxt"))
+            else:
+                v_path = self.log_root_dir / version
+                if not v_path.exists():
+                    print(f"{v_path} not found")
+                    return []
+                projector_configs = v_path.rglob("*.pbtxt")
+            embeddings = {}
+            for config_path in projector_configs:
+                config = ProjectorConfig()
+                with tf.io.gfile.GFile(config_path.as_posix(), "r") as f:
+                    file_content = f.read()
+                text_format.Parse(file_content, config)
+                embeddings[config_path.parent.name] = [
+                    (
+                        e.tensor_name,
+                        self._read_tensor_tsv_file(config_path.parent / e.tensor_path),
+                        self._read_metadata_tsv_file(
+                            config_path.parent / e.metadata_path
+                        ),
+                    )
+                    for e in config.embeddings
+                ]
+            return embeddings
+
+        def get_logs(
+            self, path_regex_mask: Optional[str] = None
+        ) -> Optional[pd.DataFrame]:
             if path_regex_mask is not None:
                 regex = re.compile(path_regex_mask)
                 event_files = [
@@ -43,15 +119,17 @@ try:
                 ]
             else:
                 event_files = self.allEventFiles
-            return self._events2DataFrames(event_files)
+            if len(event_files) == 0:
+                return None
+            return self._events_to_dfs(event_files)
 
         @staticmethod
-        def _getLogsInPath(path: Path):
+        def _get_logs_in_path(path: Path):
             return list(path.rglob("event*"))
 
         # Extraction function
         @staticmethod
-        def _eventPath2DataFrame(path: Path) -> Optional[pd.DataFrame]:
+        def _event_path_to_df(path: Path) -> Optional[pd.DataFrame]:
             """convert single tensorflow log file to pandas DataFrame
 
             Parameters
@@ -107,7 +185,7 @@ try:
             return None
 
         @staticmethod
-        def _events2DataFrames(event_paths: List[Path]) -> pd.DataFrame:
+        def _events_to_dfs(event_paths: List[Path]) -> pd.DataFrame:
             all_logs = {}
             event_paths.sort()
             for path in tqdm.tqdm(event_paths, desc="Loading Events"):
@@ -120,7 +198,7 @@ try:
                 if fold not in all_logs[name].keys():
                     all_logs[name][fold] = []
 
-                df = TBLogReader._eventPath2DataFrame(path)
+                df = TBLogReader._event_path_to_df(path)
 
                 if df is not None:
                     df["model"] = name
