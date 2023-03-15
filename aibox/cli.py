@@ -46,17 +46,13 @@ class AIBoxCLI:
         self.parser.add_argument("-e", "--exp_name", type=str)
         self.parser.add_argument("-m", "--model_name", type=str)
         self.parser.add_argument("-c", "--config", type=str)
-        self.parser.add_argument(
-            "-cd", "--config_dir", action=PathAction, default=cwd("configs")
-        )
-        self.parser.add_argument(
-            "-l", "--log_dir", action=PathAction, default=cwd("logs")
-        )
+        self.parser.add_argument("-cd", "--config_dir", action=PathAction, default=cwd("configs"))
+        self.parser.add_argument("-l", "--log_dir", action=PathAction, default=cwd("logs"))
         self.parser.add_argument(
             "-d",
             "--defaults",
             action=PathAction,
-            default=cwd('configs/default.toml'),
+            default=cwd("configs/default.toml"),
         )
         self.parser.add_argument(
             "-ed",
@@ -70,6 +66,7 @@ class AIBoxCLI:
             action=PathAction,
             default=cwd("configs/models"),
         )
+        self.parser.add_argument("--debug", action="store_true", default=False)
 
     def add_argument(self, *args, **kwargs):
         self.parser.add_argument(*args, **kwargs)
@@ -97,9 +94,7 @@ class AIBoxCLI:
                 OmegaConf.update(config, src, default, force_add=True)
 
             if otherVal is None or srcVal != otherVal:
-                OmegaConf.update(
-                    config, other, OmegaConf.select(config, src), force_add=True
-                )
+                OmegaConf.update(config, other, OmegaConf.select(config, src), force_add=True)
 
     def _args_to_config(self, args: Namespace | list):
         if isinstance(args, list):
@@ -108,12 +103,8 @@ class AIBoxCLI:
             for u in _unk:
                 unk.extend(u)
             if len(unk) % 2 != 0:
-                rich.print(
-                    f"[bold red]Only key-value pair arguments are supported for OmegaConf"
-                )
-                raise CLIException(
-                    "Only key-value pair arguments are supported for OmegaConf"
-                )
+                rich.print("[bold red]Only key-value pair arguments are supported for OmegaConf")
+                raise CLIException("Only key-value pair arguments are supported for OmegaConf")
             args = {k: v for k, v in _chunk(unk, 2)}
         else:
             args = vars(args)
@@ -152,9 +143,7 @@ class AIBoxCLI:
         except:
             _config = OmegaConf.from_dotlist([])
 
-        config = OmegaConf.merge(
-            defaults_config, _config, model_config, experiment_config, cli_config
-        )
+        config = OmegaConf.merge(defaults_config, _config, model_config, experiment_config, cli_config)
         config = OmegaConf.create(OmegaConf.to_object(config))
         self.resolve_linked_props(config)
         return config
@@ -164,12 +153,8 @@ def cli_main(args=None):
     cli = AIBoxCLI()
 
     # Second key takes priority
-    cli.add_linked_properties(
-        "model.args.image_size", "data.args.image_size", default=64
-    )
-    cli.add_linked_properties(
-        "model.args.image_channels", "data.args.image_channels", default=1
-    )
+    cli.add_linked_properties("model.args.image_size", "data.args.image_size", default=64)
+    cli.add_linked_properties("model.args.image_channels", "data.args.image_channels", default=1)
 
     config = cli.parse_args(args=args)
 
