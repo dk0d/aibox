@@ -1,4 +1,5 @@
 try:
+    import torch
     import torch.nn as nn
     import torchvision
     from torch.utils.tensorboard.writer import SummaryWriter
@@ -10,9 +11,11 @@ except ImportError:
 import io
 
 import matplotlib.pyplot as plt
+import numpy as np
+import itertools
 
 
-def figure_to_image(figure):
+def figure_to_image(figure) -> torch.Tensor:
     """
     Converts the matplotlib plot specified by 'figure' to a PNG image and
     returns it. The supplied figure is closed and inaccessible after this call.
@@ -21,24 +24,26 @@ def figure_to_image(figure):
     # Save the plot to a PNG in memory.
     buf = io.BytesIO()
     plt.savefig(buf, format="png")
+
     # Closing the figure prevents it from being displayed directly inside
     # the notebook.
     plt.close(figure)
+
+    # Set buffer to begining
     buf.seek(0)
-    # Convert PNG buffer to TF image
+
+    # Convert PNG buffer to Tensor image
     image = decode_image(buf.getvalue(), channels=4)
+
     # Add the batch dimension
     image = image.unsqueeze(0)
     return image
 
 
-def make_image_grid_figure(images, title, figsize=(10, 10), **kwargs):
-    """
-    Return a figure from the images as a matplotlib figure.
-    """
+def make_image_figure(image: np.ndarray | torch.Tensor, title, figsize=(10, 10)):
 
-    # create an image grid
-    grid = torchvision.utils.make_grid(images, **kwargs)
+    if isinstance(image, torch.Tensor):
+        image = image.detach().cpu().numpy()
 
     # Create a figure to contain the plot.
     figure, ax = plt.subplots(1, 1, figsize=figsize)
@@ -48,9 +53,19 @@ def make_image_grid_figure(images, title, figsize=(10, 10), **kwargs):
     ax.set_axis_off()
 
     # show image grid
-    ax.imshow(grid, cmap=plt.cm.binary)
+    ax.imshow(image, cmap=plt.cm.binary)
 
     return figure
+
+
+def make_image_grid_figure(images, title, figsize=(10, 10), **kwargs) -> plt.Figure:
+    """
+    Return a figure from the images as a matplotlib figure.
+    """
+
+    # create an image grid
+    grid = torchvision.utils.make_grid(images, **kwargs)
+    return make_image_figure(grid, title, figsize=figsize)
 
 
 def weight_histograms(writer: SummaryWriter, step: int, model: nn.Module, prefix="", per_kernel=True):
@@ -69,6 +84,51 @@ def weight_histograms(writer: SummaryWriter, step: int, model: nn.Module, prefix
                 writer.add_histogram(f"{name}.k{k}".replace(".", "/"), param[k].flatten(), **histParams)
         else:
             writer.add_histogram(name.replace(".", "/"), param.flatten(), **histParams)
+
+
+def plot_confusion_matrix(cm, class_names):
+    """
+    Returns a matplotlib figure containing the plotted confusion matrix.
+
+    Args:
+      cm (array, shape = [n, n]): a confusion matrix of integer classes
+      class_names (array, shape = [n]): String names of the integer classes
+    """
+    figure = plt.figure(figsize=(8, 8))
+    plt.imshow(cm, interpolation="nearest", cmap=plt.cm.Blues)
+    plt.title("Confusion matrix")
+    plt.colorbar()
+    tick_marks = np.arange(len(class_names))
+    plt.xticks(tick_marks, class_names, rotation=45)
+    plt.yticks(tick_marks, class_names)
+
+    # Compute the labels from the normalized confusion matrix.
+    labels = np.around(cm.astype("float") / cm.sum(axis=1)[:, np.newaxis], decimals=2)
+
+    # Use white text if squares are dark; otherwise black.
+    threshold = cm.max() / 2.0
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        color = "white" if cm[i, j] > threshold else "black"
+        plt.text(j, i, labels[i, j], horizontalalignment="center", color=color)
+
+    plt.tight_layout()
+    plt.ylabel("True label")
+    plt.xlabel("Predicted label")
+    return figure
+
+
+def make_confusion_matrix_image(predictions, labels, class_names):
+    import sklearn
+
+    # Calculate the confusion matrix.
+    cm = sklearn.metrics.confusion_matrix(labels, predictions)
+    # Log the confusion matrix as an image summary.
+    figure = plot_confusion_matrix(cm, class_names=class_names)
+    cm_image = figure_to_image(figure)
+    # # Log the confusion matrix as an image summary.
+    # with file_writer_cm.as_default():
+    #     tf.summary.image("epoch_confusion_matrix", cm_image, step=epoch)
+    return cm_image
 
 
 try:
