@@ -35,7 +35,7 @@ def figure_to_image(figure) -> torch.Tensor:
     buf.seek(0)
 
     # Convert PNG buffer to Tensor image
-    tensor = torch.frombuffer(buf.getbuffer(), dtype='float32')
+    tensor = torch.frombuffer(buf.getbuffer(), dtype=torch.uint8)
     image = decode_image(tensor, mode=ImageReadMode.RGB_ALPHA)
 
     # Add the batch dimension
@@ -43,10 +43,10 @@ def figure_to_image(figure) -> torch.Tensor:
     return image
 
 
-def make_image_figure(image: np.ndarray | torch.Tensor, title, figsize=(10, 10), tensor_input_format="CHW"):
+def make_image_figure(image: np.ndarray | torch.Tensor, title, figsize=(10, 10)):
 
     if isinstance(image, torch.Tensor):
-        image = convert_to_HWC(make_np(image), input_format=tensor_input_format)
+        image = convert_to_HWC(make_np(image), input_format="CHW")
 
     # Create a figure to contain the plot.
     figure, ax = plt.subplots(1, 1, figsize=figsize)
