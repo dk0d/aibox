@@ -39,7 +39,8 @@ def figure_to_image(figure) -> torch.Tensor:
     image = decode_image(tensor, mode=ImageReadMode.RGB_ALPHA)
 
     # Add the batch dimension
-    image = image.unsqueeze(0)
+    # image = image.unsqueeze(0)
+
     return image
 
 
