@@ -35,7 +35,8 @@ def figure_to_image(figure) -> torch.Tensor:
     buf.seek(0)
 
     # Convert PNG buffer to Tensor image
-    image = decode_image(buf.getvalue(), mode=ImageReadMode.RGB_ALPHA)
+    tensor = torch.frombuffer(buf.getbuffer(), dtype='float32')
+    image = decode_image(tensor, mode=ImageReadMode.RGB_ALPHA)
 
     # Add the batch dimension
     image = image.unsqueeze(0)
@@ -60,13 +61,13 @@ def make_image_figure(image: np.ndarray | torch.Tensor, title, figsize=(10, 10),
     return figure
 
 
-def make_image_grid_figure(images, title, figsize=(10, 10), **kwargs) -> plt.Figure:
+def make_image_grid_figure(images, title, figsize=(10, 10), **grid_kwargs) -> plt.Figure:
     """
     Return a figure from the images as a matplotlib figure.
     """
 
     # create an image grid
-    grid = torchvision.utils.make_grid(images, **kwargs)
+    grid = torchvision.utils.make_grid(images, **grid_kwargs)
     return make_image_figure(grid, title, figsize=figsize)
 
 
