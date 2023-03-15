@@ -3,6 +3,8 @@ try:
     import torch.nn as nn
     import torchvision
     from torch.utils.tensorboard.writer import SummaryWriter
+    from torch.utils.tensorboard._utils import convert_to_HWC
+    from torch.utils.tensorboard._convert_np import make_np
     from torchvision.io.image import decode_image
 except ImportError:
     print("pytorch required for these utilities")
@@ -43,7 +45,7 @@ def figure_to_image(figure) -> torch.Tensor:
 def make_image_figure(image: np.ndarray | torch.Tensor, title, figsize=(10, 10)):
 
     if isinstance(image, torch.Tensor):
-        image = image.detach().cpu().numpy()
+        image = convert_to_HWC(make_np(image))
 
     # Create a figure to contain the plot.
     figure, ax = plt.subplots(1, 1, figsize=figsize)
