@@ -5,7 +5,7 @@ try:
     from torch.utils.tensorboard.writer import SummaryWriter
     from torch.utils.tensorboard._utils import convert_to_HWC
     from torch.utils.tensorboard._convert_np import make_np
-    from torchvision.io.image import decode_image
+    from torchvision.io.image import decode_image, ImageReadMode
 except ImportError:
     print("pytorch required for these utilities")
     exit(1)
@@ -35,17 +35,17 @@ def figure_to_image(figure) -> torch.Tensor:
     buf.seek(0)
 
     # Convert PNG buffer to Tensor image
-    image = decode_image(buf.getvalue(), channels=4)
+    image = decode_image(buf.getvalue(), mode=ImageReadMode.RGB_ALPHA)
 
     # Add the batch dimension
     image = image.unsqueeze(0)
     return image
 
 
-def make_image_figure(image: np.ndarray | torch.Tensor, title, figsize=(10, 10)):
+def make_image_figure(image: np.ndarray | torch.Tensor, title, figsize=(10, 10), tensor_input_format="CHW"):
 
     if isinstance(image, torch.Tensor):
-        image = convert_to_HWC(make_np(image))
+        image = convert_to_HWC(make_np(image), input_format=tensor_input_format)
 
     # Create a figure to contain the plot.
     figure, ax = plt.subplots(1, 1, figsize=figsize)
