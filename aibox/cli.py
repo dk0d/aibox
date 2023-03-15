@@ -125,22 +125,26 @@ class AIBoxCLI:
 
         try:
             defaults_config = config_from_toml(cli_config.defaults)
-        except:
+        except Exception as e:
+            print(f'Error loading defaults: {e}')
             defaults_config = OmegaConf.from_dotlist([])
 
         try:
             model_config = config_from_toml(args.models_dir / f"{args.model_name}.toml")
-        except:
+        except Exception as e:
+            print(f'Error loading model {args.model_name}: {e}')
             model_config = OmegaConf.from_dotlist([])
 
         try:
             experiment_config = config_from_toml(args.exp_dir / f"{args.exp_name}.toml")
-        except:
+        except Exception as e:
+            print(f'Error loading experiment {args.exp_name}: {e}')
             experiment_config = OmegaConf.from_dotlist([])
 
         try:
             _config = config_from_toml(args.config)
-        except:
+        except Exception as e:
+            print(f'Error loading config {args.config}: {e}')
             _config = OmegaConf.from_dotlist([])
 
         config = OmegaConf.merge(defaults_config, _config, model_config, experiment_config, cli_config)
