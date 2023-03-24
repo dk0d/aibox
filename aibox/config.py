@@ -1,6 +1,7 @@
 import importlib
 from pathlib import Path
 from omegaconf import OmegaConf
+from omegaconf.dictconfig import DictConfig
 
 
 def print_config(config):
@@ -22,7 +23,7 @@ def class_from_string(string: str, reload=False):
     return getattr(importlib.import_module(module, package=None), cls)
 
 
-def build_from_cfg(config: OmegaConf | dict, *args, **kwargs):
+def init_from_cfg(config: OmegaConf | dict, *args, **kwargs):
     """Builds an object from the given configuration
 
     Args:
@@ -33,7 +34,7 @@ def build_from_cfg(config: OmegaConf | dict, *args, **kwargs):
     Returns:
         _type_: Object
     """
-    if not "class_path" in config:
+    if "class_path" not in config:
         raise KeyError("Expected key `class_path` to instantiate object")
     Class = class_from_string(config["class_path"])
     params = config.get("args", dict())
@@ -73,28 +74,54 @@ def config_dump(config: OmegaConf, path: Path):
         tomldump(c, fp)
 
 
-def yaml_to_toml(source_dir: Path, out_dir: Path, name_fn=None):
+def remove_any_none_values(config: DictConfig | dict):
+    if isinstance(config, DictConfig):
+        config = OmegaConf.to_object(config)
+    out = {
+        k: (remove_any_none_values(v) if isinstance(v, (dict, DictConfig)) else v)
+        for k, v in config.items()
+        if v is not None
+    }
+    return out
 
-    try:
-        from pprint import pprint
 
-        import yaml
-        from tomlkit import dump as tomldump
-    except ImportError:
-        print("yaml, tomlkit required")
-        return
-
-    yamlConfigs = [
-        (p, yaml.load(p.open("r"), yaml.Loader)) for p in source_dir.rglob("**/*.yaml")
-    ]
-    pprint(f"Found {len(yamlConfigs)} YAML Files")
+def _configs_to_toml(configs, source_dir: Path, out_dir: Path, name_fn=None):
+    from tomlkit import dump as tomldump
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    for p, y in yamlConfigs:
+    for p, y in configs:
         relPath = p.relative_to(source_dir)
         if name_fn is not None:
             relPath = name_fn(relPath)
         outPath = (out_dir / relPath).with_suffix(".toml")
         outPath.parent.mkdir(parents=True, exist_ok=True)
         with outPath.open("w") as fp:
-            tomldump(y, fp)
+            tomldump(remove_any_none_values(y), fp)
+
+
+def json_to_toml(source_dir: Path, out_dir: Path, name_fn=None):
+    try:
+        from pprint import pprint
+
+        import json
+    except ImportError:
+        print("yaml, tomlkit required")
+        return
+
+    json_configs = [(p, json.load(p.open("r"))) for p in source_dir.rglob("**/*.json")]
+    pprint(f"Found {len(json_configs)} JSON Files")
+    _configs_to_toml(json_configs, source_dir, out_dir, name_fn)
+
+
+def yaml_to_toml(source_dir: Path, out_dir: Path, name_fn=None):
+    try:
+        from pprint import pprint
+
+        import yaml
+    except ImportError:
+        print("yaml, tomlkit required")
+        return
+
+    yamlConfigs = [(p, yaml.load(p.open("r"), yaml.Loader)) for p in source_dir.rglob("**/*.yaml")]
+    pprint(f"Found {len(yamlConfigs)} YAML Files")
+    _configs_to_toml(yamlConfigs, source_dir, out_dir, name_fn)

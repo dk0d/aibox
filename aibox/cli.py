@@ -1,8 +1,9 @@
 from argparse import ArgumentParser, Action, Namespace
 from pathlib import Path
+from omegaconf import OmegaConf
 from typing import Any, Sequence
 import rich
-from omegaconf import OmegaConf
+import datetime
 
 
 from .config import config_from_toml
@@ -126,40 +127,43 @@ class AIBoxCLI:
         try:
             defaults_config = config_from_toml(cli_config.defaults)
         except Exception as e:
-            rich.console(f'[bold red]Error loading defaults: {e}')
+            rich.console(f"[bold red]Error loading defaults: {e}")
             defaults_config = OmegaConf.from_dotlist([])
 
         try:
             model_config = config_from_toml(args.models_dir / f"{args.model_name}.toml")
         except Exception as e:
             if args.model_name is not None:
-                rich.console(f'[bold red]Error loading model {args.model_name}: {e}')
+                rich.console(f"[bold red]Error loading model {args.model_name}: {e}")
             model_config = OmegaConf.from_dotlist([])
 
         try:
             experiment_config = config_from_toml(args.exp_dir / f"{args.exp_name}.toml")
         except Exception as e:
             if args.exp_name is not None:
-                rich.console(f'[bold red]Error loading experiment {args.exp_name}: {e}')
+                rich.console(f"[bold red]Error loading experiment {args.exp_name}: {e}")
             experiment_config = OmegaConf.from_dotlist([])
 
         try:
             _config = config_from_toml(args.config)
         except Exception as e:
             if args.config is not None:
-                rich.console(f'[bold red]Error loading config {args.config}: {e}')
+                rich.console(f"[bold red]Error loading config {args.config}: {e}")
             _config = OmegaConf.from_dotlist([])
 
         config = OmegaConf.merge(defaults_config, _config, model_config, experiment_config, cli_config)
         config = OmegaConf.create(OmegaConf.to_object(config))
         self.resolve_linked_props(config)
+
+        config.created = datetime.datetime.now().isoformat()
+
         return config
 
 
 def cli_main(args=None):
     cli = AIBoxCLI()
 
-    # Second key takes priority
+    # First key (source) takes priority
     cli.add_linked_properties("model.args.image_size", "data.args.image_size", default=64)
     cli.add_linked_properties("model.args.image_channels", "data.args.image_channels", default=1)
 
