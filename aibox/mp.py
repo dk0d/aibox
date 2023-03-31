@@ -1,14 +1,14 @@
 import concurrent.futures
 import itertools
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from typing import Callable, Optional
+from typing import Callable, Optional, List
 
 import tqdm
 
 
 def multiprocess(
     func,
-    argsList,
+    argsList: List[dict],
     poolMode="process",  # or 'thread'
     onResult: Optional[Callable] = None,
     maxJobs=400,
@@ -18,15 +18,14 @@ def multiprocess(
     """
 
     Args:
-        func ():
-        argsList ():
-        poolMode ():
-        onResult (): Callback when result collected, takes in result object and the progress bar for updating post-fix or other operations.
-        maxJobs ():
-        desc ():
-        showProg ():
-
-    Returns:
+        func (Callable): function to be called 
+        argsList (List[dict]): list of keyword argument dictionaries that will be past into the function
+        poolMode (str): one of 'process' or 'thread'
+        onResult (Optional[Callable]): Callback when result collected, takes in result object and the progress bar
+            for updating post-fix or other operations.
+        maxJobs (int):
+        desc (str):
+        showProg (bool):
 
     """
     iterArgs = iter(argsList)
