@@ -23,7 +23,7 @@ def class_from_string(string: str, reload=False):
     return getattr(importlib.import_module(module, package=None), cls)
 
 
-def init_from_cfg(config: OmegaConf | dict, *args, **kwargs):
+def init_from_cfg(config: DictConfig | dict, *args, **kwargs):
     """Builds an object from the given configuration
 
     Args:
@@ -34,8 +34,10 @@ def init_from_cfg(config: OmegaConf | dict, *args, **kwargs):
     Returns:
         _type_: Object
     """
+
     if "class_path" not in config:
         raise KeyError("Expected key `class_path` to instantiate object")
+
     Class = class_from_string(config["class_path"])
     params = config.get("args", dict())
     params.update(**kwargs)
@@ -48,7 +50,7 @@ def config_from_toml_stream(stream):
     return OmegaConf.create(loads(stream).unwrap())
 
 
-def config_from_toml(path: Path | str) -> OmegaConf:
+def config_from_toml(path: Path | str) -> DictConfig:
     from tomlkit import load as tomlload
 
     with Path(path).open("r") as fp:
@@ -56,13 +58,15 @@ def config_from_toml(path: Path | str) -> OmegaConf:
     return cfg
 
 
-def config_from_path(path: Path | str) -> OmegaConf:
+def config_from_path(path: Path | str) -> DictConfig:
+    path = Path(path)
     if path.suffix in [".toml"]:
         return config_from_toml(path)
     import yaml
 
     with path.open("r") as fp:
         config = yaml.load(fp, Loader=yaml.Loader)
+
     return OmegaConf.create(config)
 
 
@@ -71,6 +75,7 @@ def config_dump(config: OmegaConf, path: Path):
 
     with path.open("w") as fp:
         c = OmegaConf.to_container(config, resolve=True)
+        c = dict(OmegaConf.to_object(c))
         tomldump(c, fp)
 
 
