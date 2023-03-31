@@ -1,12 +1,13 @@
 try:
-    from pytorch_lightning.cli import LightningArgumentParser
     import pytorch_lightning as pl
-    from ..config import init_from_cfg
+    from pytorch_lightning.cli import LightningArgumentParser
     import omegaconf as oc
     from rich import print
 
     from argparse import ArgumentParser
 
+    from ..config import init_from_cfg
+    
 except ImportError:
     print("pytorch_lightning required to import these utilities")
     exit(1)
@@ -75,48 +76,36 @@ def nondefault_trainer_args(opt):
 #                     pass
 
 class AIBoxLightningModule(pl.LightningModule):
+    
     def __str__(self) -> str:
         return f"{self.model.__class__.__name__}"
 
     def __repr__(self):
         return super().__str__()
 
-    @property
-    def example_input_array(self):
-        if hasattr(self.model, 'example_input_array'):
-            return self.model.example_input_array
-        return None
-
-    def __init__(self, model_config, optimizers_config, schedulers_config, loss_config, **kwargs):
+    def __init__(self, optimizers, schedulers, loss, **kwargs):
         """
-        Assumes config has config entries (class_path, args) for model, loss, optimizers, and schedulers
+        Assumes loss, optimizers, and schedulers are all configuration dictionaries
         """
         super().__init__()
-
-        self.model_config = model_config
-        try:
-            self.model = init_from_cfg(model_config, **kwargs)
-        except Exception as e:
-            print(f"[red bold]Error instantiating config: {model_config}")
-            print(f"Exception {e}")
-            exit(0)
             
         try:
             if not isinstance(self.model, pl.LightningModule):
-                self.loss_fn = init_from_cfg(loss_config)
+                self.loss_fn = init_from_cfg(loss)
             else:
                 self.loss_fn = None
         except Exception as e:
-            print(f"[red bold]Error instantiating config: {loss_config}")
+            print(f"[red bold]Error instantiating config: {loss}")
             print(f"Exception {e}")
             exit(0)
 
 
-        self.optimizers_cfg = optimizers_config
-        self.schedulers_cfg = schedulers_config
+        self.optimizers_cfg = optimizers
+        self.schedulers_cfg = schedulers
         self.current_device = None
 
     def configure_optimizers(self):
+
         optims = []
         scheds = []
 
@@ -125,9 +114,9 @@ class AIBoxLightningModule(pl.LightningModule):
         # sharded model training
         if oc.OmegaConf.is_list(self.optimizers_cfg):
             for cfg in self.optimizers_cfg:
-                optims.append(init_from_cfg(cfg, self.model.parameters()))
+                optims.append(init_from_cfg(cfg, self.parameters()))
         elif oc.OmegaConf.is_dict(self.optimizers_cfg):
-            optims.append(init_from_cfg(self.optimizers_cfg, self.model.parameters()))
+            optims.append(init_from_cfg(self.optimizers_cfg, self.parameters()))
         else:
             raise NotImplementedError
 
@@ -144,10 +133,8 @@ class AIBoxLightningModule(pl.LightningModule):
         if len(scheds) > 0 and len(optims) > 0:
             return optims, scheds
 
+
         return optims[0]
-    
-    def forward(self, *args, **kwargs):
-        return self.model(*args, **kwargs)
 
     # def _step(self, batch, batchIdx, optimizerIdx=0):
     #     x, prior, params = resolveBatch(batch)
