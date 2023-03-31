@@ -17,7 +17,7 @@ def nondefault_trainer_args(opt):
     args = parser.parse_args([])
     return sorted(k for k in vars(args) if getattr(opt, k) != getattr(args, k))
 
-#
+
 # class SetupCallback(Callback):
 #     def __init__(self, resume, now, logdir, ckptdir, cfgdir, config, lightning_config):
 #         super().__init__()
@@ -139,6 +139,9 @@ class AIBoxLightningModule(pl.LightningModule):
             return optims, scheds
 
         return optims[0]
+    
+    def forward(self, *args, **kwargs):
+        return self.model(*args, **kwargs)
 
     # def _step(self, batch, batchIdx, optimizerIdx=0):
     #     x, prior, params = resolveBatch(batch)
@@ -158,26 +161,24 @@ class AIBoxLightningModule(pl.LightningModule):
     #     )
     #     return loss
 
-    def _prefix_log(self, prefix, loss: dict):
-        self.log_dict({f"{prefix}/{key}": val.item() for key, val in loss.items()}, sync_dist=True)
+    # def _prefix_log(self, prefix, loss: dict):
+    #     self.log_dict({f"{prefix}/{key}": val.item() for key, val in loss.items()}, sync_dist=True)
 
-    def forward(self, *args, **kwargs):
-        return self.model(*args, **kwargs)
 
-    def training_step(self, batch, batchIdx, optimizerIdx=0):
-        loss = self._step(batch, batchIdx, optimizerIdx)
-        self._prefix_log("train", loss)
-        return loss["loss"]
+    # def training_step(self, batch, batchIdx, optimizerIdx=0):
+    #     loss = self._step(batch, batchIdx, optimizerIdx)
+    #     self._prefix_log("train", loss)
+    #     return loss["loss"]
 
-    def validation_step(self, batch, batchIdx, optimizerIdx=0):
-        loss = self._step(batch, batchIdx, optimizerIdx)
-        self._prefix_log("val", loss)
-        return loss["loss"]
+    # def validation_step(self, batch, batchIdx, optimizerIdx=0):
+    #     loss = self._step(batch, batchIdx, optimizerIdx)
+    #     self._prefix_log("val", loss)
+    #     return loss["loss"]
 
-    def on_validation_end(self):
-        self.sampleImages()
+    # def on_validation_end(self):
+    #     self.sampleImages()
 
-    def test_step(self, batch, batchIdx, optimizerIdx=0):
-        loss = self._step(batch, batchIdx, optimizerIdx)
-        self._prefix_log("test", loss)
-        return loss["loss"]
+    # def test_step(self, batch, batchIdx, optimizerIdx=0):
+    #     loss = self._step(batch, batchIdx, optimizerIdx)
+    #     self._prefix_log("test", loss)
+    #     return loss["loss"]
