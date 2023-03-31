@@ -90,10 +90,10 @@ class AIBoxLightningModule(pl.LightningModule):
         super().__init__()
             
         try:
-            if not isinstance(self.model, pl.LightningModule):
-                self.loss_fn = init_from_cfg(loss)
-            else:
+            if loss is None:
                 self.loss_fn = None
+            else:
+                self.loss_fn = init_from_cfg(loss)
         except Exception as e:
             print(f"[red bold]Error instantiating config: {loss}")
             print(f"Exception {e}")
