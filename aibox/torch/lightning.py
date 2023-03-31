@@ -3,6 +3,7 @@ try:
     import pytorch_lightning as pl
     from ..config import init_from_cfg
     import omegaconf as oc
+    from rich import print
 
     from argparse import ArgumentParser
 
@@ -86,28 +87,33 @@ class AIBoxLightningModule(pl.LightningModule):
             return self.model.example_input_array
         return None
 
-    def __init__(self, config, **kwargs):
+    def __init__(self, model_config, optimizers_config, schedulers_config, loss_config, **kwargs):
         """
         Assumes config has config entries (class_path, args) for model, loss, optimizers, and schedulers
         """
         super().__init__()
 
-        self.config = config
+        self.model_config = model_config
         try:
-            self.model = init_from_cfg(config.model, **kwargs)
-
+            self.model = init_from_cfg(model_config, **kwargs)
+        except Exception as e:
+            print(f"[red bold]Error instantiating config: {model_config}")
+            print(f"Exception {e}")
+            exit(0)
+            
+        try:
             if not isinstance(self.model, pl.LightningModule):
-                self.loss_fn = init_from_cfg(config.loss)
+                self.loss_fn = init_from_cfg(loss_config)
             else:
                 self.loss_fn = None
-
         except Exception as e:
-            print(f"Error instantiating config: {config}")
+            print(f"[red bold]Error instantiating config: {loss_config}")
             print(f"Exception {e}")
             exit(0)
 
-        self.optimizers_cfg = config.optimizers
-        self.schedulers_cfg = config.schedulers
+
+        self.optimizers_cfg = optimizers_config
+        self.schedulers_cfg = schedulers_config
         self.current_device = None
 
     def configure_optimizers(self):
