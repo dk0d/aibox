@@ -8,7 +8,7 @@ import tqdm
 
 def multiprocess(
     func,
-    argsList: List[dict],
+    kwargsList: List[dict],
     poolMode="process",  # or 'thread'
     onResult: Optional[Callable] = None,
     maxJobs=400,
@@ -19,7 +19,7 @@ def multiprocess(
 
     Args:
         func (Callable): function to be called 
-        argsList (List[dict]): list of keyword argument dictionaries that will be past into the function
+        kwargsList (List[dict]): list of keyword argument dictionaries that will be past into the function
         poolMode (str): one of 'process' or 'thread'
         onResult (Optional[Callable]): Callback when result collected, takes in result object and the progress bar
             for updating post-fix or other operations.
@@ -28,11 +28,12 @@ def multiprocess(
         showProg (bool): flag whether to show progess bar
 
     """
-    iterArgs = iter(argsList)
+    iterArgs = iter(kwargsList)
     if showProg:
-        prog = tqdm.tqdm(total=len(argsList), desc=desc)
+        prog = tqdm.tqdm(total=len(kwargsList), desc=desc)
     else:
         prog = None
+        
     if poolMode == "process":
         ProcessPool = ProcessPoolExecutor
     else:
