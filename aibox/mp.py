@@ -16,6 +16,8 @@ def multiprocess(
     showProg=True,
 ):
     """
+    Multi-processing helper for handling job submission and 
+    limiting memory consumption by queuing at max the specified number of jobs 
 
     Args:
         func (Callable): function to be called 
@@ -28,7 +30,6 @@ def multiprocess(
         showProg (bool): flag whether to show progess bar
 
     """
-    iterArgs = iter(kwargsList)
     if showProg:
         prog = tqdm.tqdm(total=len(kwargsList), desc=desc)
     else:
@@ -39,6 +40,8 @@ def multiprocess(
     else:
         ProcessPool = ThreadPoolExecutor
 
+    iterArgs = iter(kwargsList)
+    
     with ProcessPool() as pool:
         futures = {pool.submit(func, **a) for a in itertools.islice(iterArgs, maxJobs)}
 
