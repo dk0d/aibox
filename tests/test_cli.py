@@ -10,6 +10,7 @@ def test_cli_no_args():
 
 def test_cli_args():
     config = cli_main(["-c", DEFAULT_CONFIG_PATH, "--model.args.name", "TESTMODEL"])
+    assert hasattr(config, "model")
     assert config.model.args.name == "TESTMODEL"
 
 
@@ -26,6 +27,3 @@ def test_cli_args_dotlist():
 def test_cli_bad_args():
     with pytest.raises(CLIException):
         cli_main(["-c", DEFAULT_CONFIG_PATH, "--model.args.name"])
-
-
-

@@ -11,7 +11,7 @@
             "cwd": "${workspaceFolder}",
             "program": "test.py",
             "console": "integratedTerminal",
-            "args": ["-c", "tests/resources/config.toml", "--model.args.name", "vae"],
+            "args": ["-c", "tests/resources/configs/config.toml", "--model.args.name", "vae"],
             "justMyCode": false
         }
     ]
