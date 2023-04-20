@@ -1,6 +1,5 @@
 [project]
 name = "aibox"
-version = "0.2.0"
 description = "My AI utilities and helpers"
 authors = [
     { name = "Daniel Capecci", email = "7775585+dk0d@users.noreply.github.com" },
@@ -18,10 +17,13 @@ dependencies = [
     "tensorboard>=2.12.2",
     "numpy>=1.24.2",
 ]
+dynamic = ["version"]
 requires-python = ">=3.10,<4.0"
 readme = "README.md"
 license = { text = "MIT" }
 
+[tool.hatch.version]
+path = "aibox/__version__.py"
 
 [tool.black]
 line-length = 120
@@ -52,3 +54,7 @@ test = ["pytest>=7.2.1"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# [build-system]
+# requires = ["pdm.backend"]
+# build-backend = "pdm.backend"
