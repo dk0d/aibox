@@ -1,6 +1,6 @@
 try:
     import torch
-    from torchvision import transforms
+    from torchvision.transforms import Lambda, Compose
 except ImportError:
     print("pytorch required for these utilities")
     exit(1)
@@ -16,18 +16,18 @@ class TensorImageToNumpy:
             denorm (bool, optional): Flag to denormalize image. Assumes _. Defaults to True.
         """
         if denorm:
-            transforms = [transforms.Lambda(lambda t: (t + 1) / 2)]
+            transforms = [Lambda(lambda t: (t + 1) / 2)]
         else:
             transforms = []
 
         transforms.extend(
             [
-                transforms.Lambda(lambda t: t.permute(1, 2, 0)),  # CHW to HWC
-                transforms.Lambda(lambda t: t * 255.0),
-                transforms.Lambda(lambda t: t.cpu().detach().numpy().astype(np.uint8)),
+                Lambda(lambda t: t.permute(1, 2, 0)),  # CHW to HWC
+                Lambda(lambda t: t * 255.0),
+                Lambda(lambda t: t.cpu().detach().numpy().astype(np.uint8)),
             ]
         )
-        self.transform = transforms.Compose(transforms)
+        self.transform = Compose(transforms)
 
     def __call__(self, image: torch.Tensor):
         return self.transform(image)
