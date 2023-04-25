@@ -1,6 +1,6 @@
 try:
     import torch
-    from torchvision.transforms import Lambda, Compose
+    from torchvision.transforms import ToPILImage, Lambda, Compose
 except ImportError:
     print("pytorch required for these utilities")
     exit(1)
@@ -15,19 +15,22 @@ class TensorImageToNumpy:
         Args:
             denorm (bool, optional): Flag to denormalize image. Assumes _. Defaults to True.
         """
-        if denorm:
-            transforms = [Lambda(lambda t: (t + 1) / 2)]
-        else:
-            transforms = []
+        # if denorm:
+        #     transforms = [Lambda(lambda t: (t + 1) / 2)]
+        # else:
+        #     transforms = []
 
-        transforms.extend(
-            [
-                Lambda(lambda t: t.permute(1, 2, 0)),  # CHW to HWC
-                Lambda(lambda t: t * 255.0),
-                Lambda(lambda t: t.cpu().detach().numpy().astype(np.uint8)),
-            ]
-        )
-        self.transform = Compose(transforms)
+        # transforms.extend(
+        #     [
+        #         Lambda(lambda t: t.permute(1, 2, 0)),  # CHW to HWC
+        #         Lambda(lambda t: t * 255.0),
+        #         Lambda(lambda t: t.cpu().detach().numpy().astype(np.uint8)),
+        #     ]
+        # )
+
+        self.transform = Compose([ToPILImage(), Lambda(lambda img: np.array(img))])
 
     def __call__(self, image: torch.Tensor):
-        return self.transform(image)
+        out = self.transform(image)
+        print(out.shape)
+        return out

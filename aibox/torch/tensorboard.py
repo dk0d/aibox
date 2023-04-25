@@ -16,8 +16,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import itertools
 
+from aibox.torch.transforms import TensorImageToNumpy, ToPILImage
 
-def figure_to_image(figure) -> torch.Tensor:
+
+def figure_to_image(figure, add_batch_dim=False) -> torch.Tensor:
     """
     Converts the matplotlib plot specified by 'figure' to a PNG image and
     returns it. The supplied figure is closed and inaccessible after this call.
@@ -38,38 +40,54 @@ def figure_to_image(figure) -> torch.Tensor:
     tensor = torch.frombuffer(buf.getbuffer(), dtype=torch.uint8)
     image = decode_image(tensor, mode=ImageReadMode.RGB_ALPHA)
 
-    # Add the batch dimension
-    # image = image.unsqueeze(0)
+    if add_batch_dim:
+        # Add the batch dimension
+        image = image.unsqueeze(0)
 
     return image
 
 
-def make_image_figure(image: np.ndarray | torch.Tensor, title, figsize=(10, 10)):
-
+def make_image_figure(
+    image: np.ndarray | torch.Tensor,
+    title,
+    figsize=(10, 10),
+    cmap=None,
+    **subplots_kwargs,
+):
     if isinstance(image, torch.Tensor):
-        image = convert_to_HWC(make_np(image), input_format="CHW")
+        image = ToPILImage()(image)
+        # image = convert_to_HWC(make_np(image), input_format="CHW")
 
     # Create a figure to contain the plot.
-    figure, ax = plt.subplots(1, 1, figsize=figsize)
+    figure, ax = plt.subplots(1, 1, figsize=figsize, **subplots_kwargs)
+
+    if cmap is not None:
+        image = image.convert("L")
+
+    # show image grid
+    ax.imshow(image, cmap=cmap)
 
     # set title
     ax.set_title(title)
     ax.set_axis_off()
 
-    # show image grid
-    ax.imshow(image, cmap=plt.cm.binary)
-
     return figure
 
 
-def make_image_grid_figure(images, title, figsize=(10, 10), **grid_kwargs) -> plt.Figure:
+def make_image_grid_figure(
+    images,
+    title,
+    figsize=(10, 10),
+    cmap=None,  # "afmhot",
+    **grid_kwargs,
+) -> plt.Figure:
     """
     Return a figure from the images as a matplotlib figure.
     """
 
     # create an image grid
     grid = torchvision.utils.make_grid(images, **grid_kwargs)
-    return make_image_figure(grid, title, figsize=figsize)
+    return make_image_figure(grid, title, figsize=figsize, cmap=cmap)
 
 
 def weight_histograms(writer: SummaryWriter, step: int, model: nn.Module, prefix="", per_kernel=True):
