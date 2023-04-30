@@ -128,36 +128,44 @@ class AIBoxCLI:
         if len(unk) > 0:
             cli_config = OmegaConf.merge(cli_config, self._args_to_config(unk))
 
+        model_path = args.models_dir / f"{args.model_name}.toml"
+        model_defaults_path = model_path.parent / "default.toml"
+        exp_path = args.exp_dir / f"{args.exp_name}.toml"
+        exp_defaults_path = exp_path.parent / "default.toml"
+
+        # Load default model config if present
+        if model_defaults_path.exists():
+            try:
+                model_defaults_config = config_from_toml(model_defaults_path)
+            except Exception as e:
+                rich.print(f"[bold red]Error loading model defaults {args.model_name}: {e}")
+                model_defaults_config = OmegaConf.from_dotlist([])
+
+        # Load model config
         try:
-            model_config = config_from_toml(args.models_dir / f"{args.model_name}.toml")
+            model_config = config_from_toml(model_path)
         except Exception as e:
             if args.model_name is not None:
                 rich.print(f"[bold red]Error loading model {args.model_name}: {e}")
             model_config = OmegaConf.from_dotlist([])
 
-        try:
-            modelPath = args.models_dir / f"{args.model_name}.toml"
-            model_defaults_config = config_from_toml(modelPath.parent / "default.toml")
-        except Exception as e:
-            if args.model_name is not None:
-                rich.print(f"[bold red]Error loading model defaults {args.model_name}: {e}")
-            model_defaults_config = OmegaConf.from_dotlist([])
-
-        try:
-            expPath = args.exp_dir / f"{args.exp_name}.toml"
-            exp_defaults_config = config_from_toml(expPath.parent / "default.toml")
-        except Exception as e:
-            if args.model_name is not None:
+        # Load default experiment config if present
+        if exp_defaults_path.exists():
+            try:
+                exp_defaults_config = config_from_toml(exp_defaults_path)
+            except Exception as e:
                 rich.print(f"[bold red]Error loading experiment defaults {args.exp_name}: {e}")
-            exp_defaults_config = OmegaConf.from_dotlist([])
+                exp_defaults_config = OmegaConf.from_dotlist([])
 
+        # Load experiment config
         try:
-            experiment_config = config_from_toml(args.exp_dir / f"{args.exp_name}.toml")
+            experiment_config = config_from_toml(exp_path)
         except Exception as e:
             if args.exp_name is not None:
                 rich.print(f"[bold red]Error loading experiment {args.exp_name}: {e}")
             experiment_config = OmegaConf.from_dotlist([])
 
+        # Load overriding config if given
         try:
             _config = config_from_toml(args.config)
         except Exception as e:
