@@ -47,13 +47,17 @@ class AIBoxCLI:
         self.parser.add_argument("-e", "--exp_name", type=str)
         self.parser.add_argument("-m", "--model_name", type=str)
         self.parser.add_argument("-c", "--config", type=str)
-        self.parser.add_argument("-cd", "--config_dir", action=PathAction, default=cwd("configs"))
-        self.parser.add_argument("-l", "--log_dir", action=PathAction, default=cwd("logs"))
         self.parser.add_argument(
-            "-d",
-            "--defaults",
+            "-cd",
+            "--config_dir",
             action=PathAction,
-            default=cwd("configs/default.toml"),
+            default=cwd("configs"),
+        )
+        self.parser.add_argument(
+            "-l",
+            "--log_dir",
+            action=PathAction,
+            default=cwd("logs"),
         )
         self.parser.add_argument(
             "-ed",
@@ -125,12 +129,6 @@ class AIBoxCLI:
             cli_config = OmegaConf.merge(cli_config, self._args_to_config(unk))
 
         try:
-            defaults_config = config_from_toml(cli_config.defaults)
-        except Exception as e:
-            rich.print(f"[bold red]Error loading defaults: {e}")
-            defaults_config = OmegaConf.from_dotlist([])
-
-        try:
             model_config = config_from_toml(args.models_dir / f"{args.model_name}.toml")
         except Exception as e:
             if args.model_name is not None:
@@ -139,14 +137,19 @@ class AIBoxCLI:
 
         try:
             modelPath = args.models_dir / f"{args.model_name}.toml"
-            if modelPath != cli_config.defaults:
-                model_defaults_config = config_from_toml(modelPath.parent / "default.toml")
-            else:
-                model_defaults_config = OmegaConf.from_dotlist([])
+            model_defaults_config = config_from_toml(modelPath.parent / "default.toml")
         except Exception as e:
             if args.model_name is not None:
-                rich.print(f"[bold red]Error loading model {args.model_name}: {e}")
+                rich.print(f"[bold red]Error loading model defaults {args.model_name}: {e}")
             model_defaults_config = OmegaConf.from_dotlist([])
+
+        try:
+            expPath = args.exp_dir / f"{args.exp_name}.toml"
+            exp_defaults_config = config_from_toml(expPath.parent / "default.toml")
+        except Exception as e:
+            if args.model_name is not None:
+                rich.print(f"[bold red]Error loading experiment defaults {args.exp_name}: {e}")
+            exp_defaults_config = OmegaConf.from_dotlist([])
 
         try:
             experiment_config = config_from_toml(args.exp_dir / f"{args.exp_name}.toml")
@@ -163,10 +166,10 @@ class AIBoxCLI:
             _config = OmegaConf.from_dotlist([])
 
         config = OmegaConf.merge(
-            defaults_config,
             _config,
             model_defaults_config,
             model_config,
+            exp_defaults_config,
             experiment_config,
             cli_config,
         )
