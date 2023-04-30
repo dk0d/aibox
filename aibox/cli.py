@@ -138,6 +138,17 @@ class AIBoxCLI:
             model_config = OmegaConf.from_dotlist([])
 
         try:
+            modelPath = args.models_dir / f"{args.model_name}.toml"
+            if modelPath != cli_config.defaults:
+                model_defaults_config = config_from_toml(modelPath.parent / "default.toml")
+            else:
+                model_defaults_config = OmegaConf.from_dotlist([])
+        except Exception as e:
+            if args.model_name is not None:
+                rich.print(f"[bold red]Error loading model {args.model_name}: {e}")
+            model_defaults_config = OmegaConf.from_dotlist([])
+
+        try:
             experiment_config = config_from_toml(args.exp_dir / f"{args.exp_name}.toml")
         except Exception as e:
             if args.exp_name is not None:
@@ -151,7 +162,14 @@ class AIBoxCLI:
                 rich.print(f"[bold red]Error loading config {args.config}: {e}")
             _config = OmegaConf.from_dotlist([])
 
-        config = OmegaConf.merge(defaults_config, _config, model_config, experiment_config, cli_config)
+        config = OmegaConf.merge(
+            defaults_config,
+            _config,
+            model_defaults_config,
+            model_config,
+            experiment_config,
+            cli_config,
+        )
         config = OmegaConf.create(OmegaConf.to_object(config))
         self.resolve_linked_props(config)
 
