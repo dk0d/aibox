@@ -49,8 +49,8 @@ class Slurm(object):
         slurm_kwargs=None,
         tmpl=None,
         date_in_name=True,
-        scripts_dir="slurm-scripts",
-        log_dir="logs",
+        scripts_dir: Path | str = "slurm-scripts",
+        log_dir: Path | str = "logs",
         bash_strict=True,
     ):
         if slurm_kwargs is None:
@@ -79,9 +79,7 @@ class Slurm(object):
 
         self.header = "\n".join(header)
         self.bash_setup = "\n".join(bash_setup)
-        self.name = "".join(
-            x for x in name.replace(" ", "-") if x.isalnum() or x == "-"
-        )
+        self.name = "".join(x for x in name.replace(" ", "-") if x.isalnum() or x == "-")
         self.tmpl = tmpl
         self.slurm_kwargs = slurm_kwargs
         if scripts_dir is not None:
@@ -138,9 +136,7 @@ class Slurm(object):
             name_addition = hashlib.sha1(command.encode("utf-8")).hexdigest()[:4]
 
         if self.date_in_name:
-            name_addition += "-" + datetime.strftime(
-                datetime.now(), format="%y-%m-%d-%H-%M-%S"
-            )
+            name_addition += "-" + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
 
         name_addition = name_addition.strip(" -")
 
@@ -201,11 +197,7 @@ class Slurm(object):
 class SlurmConfig:
     @property
     def params(self) -> dict:
-        return {
-            re.sub("_", "-", k).lower(): v
-            for k, v in self.__dict__.items()
-            if v is not None
-        }
+        return {re.sub("_", "-", k).lower(): v for k, v in self.__dict__.items() if v is not None}
 
     def __init__(
         self,
@@ -232,9 +224,7 @@ class SlurmConfig:
         self.mem = mem  # total mem
         if self.mem is None:
             self.mem_per_cpu = mem_per_cpu
-        assert (
-            self.mem is not None or self.mem_per_cpu is not None
-        ), f"One of `mem` or `mem_per_cpu` must be set"
+        assert self.mem is not None or self.mem_per_cpu is not None, "One of `mem` or `mem_per_cpu` must be set"
         self.qos = qos
         self.mail_user = mail_user
         self.mail_type = mail_type
@@ -244,7 +234,7 @@ class SlurmConfig:
         self.time = time
 
 
-def write_slurm_script(
+def submit_slurm_script(
     name,
     env_name,
     py_file_path,
@@ -257,7 +247,6 @@ def write_slurm_script(
     verbose=False,
     debug=False,
 ):
-
     s = Slurm(
         name,
         slurm_kwargs=slurm_cfg.params,
@@ -281,7 +270,6 @@ def write_slurm_script(
             else:
                 _scriptArgs.append(f"{k}{v}")
     else:
-
         _scriptArgs.extend(py_file_args)
 
     envPath = Path(conda_envs_dir).expanduser().resolve() / env_name
