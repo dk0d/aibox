@@ -9,7 +9,7 @@ import numpy as np
 
 
 class ToNumpyImage:
-    def __init__(self, mode="RGB"):
+    def __init__(self, mode=None):
         """Transforms a CHW tensor to numpy image.
 
         Args:
