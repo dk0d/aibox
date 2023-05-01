@@ -122,6 +122,20 @@ class AIBoxCLI:
             OmegaConf.update(conf, k, None, force_add=True)
         return conf
 
+    def _load_config(self, path: Path, custom_msg=None, verbose=False):
+        try:
+            config = config_from_toml(path)
+            return config
+        except Exception as e:
+            if verbose:
+                errormsg = (
+                    f"[bold red]Error loading {custom_msg} {path.name}: {e}"
+                    if custom_msg is None
+                    else f"[bold red]Error loading {path.name}: {e}"
+                )
+                rich.print(errormsg)
+        return OmegaConf.from_dotlist([])
+
     def parse_args(self, args=None) -> OmegaConf:
         args, unk = self.parser.parse_known_args(args)
         cli_config = self._args_to_config(args)
@@ -134,52 +148,19 @@ class AIBoxCLI:
         exp_defaults_path, exp_defaults_config = exp_path.parent / "default.toml", None
 
         # Load default model config if present
-        if model_defaults_path.exists():
-            try:
-                model_defaults_config = config_from_toml(model_defaults_path)
-            except Exception as e:
-                rich.print(f"[bold red]Error loading model defaults {args.model_name}: {e}")
+        model_defaults_config = self._load_config(model_defaults_path, custom_msg="model defaults")
 
         # Load model config
-        try:
-            model_config = config_from_toml(model_path)
-        except Exception as e:
-            if args.model_name is not None:
-                rich.print(f"[bold red]Error loading model {args.model_name}: {e}")
+        model_config = self._load_config(model_path, custom_msg="model", verbose=args.model_name is not None)
 
         # Load default experiment config if present
-        if exp_defaults_path.exists():
-            try:
-                exp_defaults_config = config_from_toml(exp_defaults_path)
-            except Exception as e:
-                rich.print(f"[bold red]Error loading experiment defaults {args.exp_name}: {e}")
+        exp_defaults_config = self._load_config(exp_defaults_path, custom_msg="experiment defaults")
 
         # Load experiment config
-        try:
-            exp_config = config_from_toml(exp_path)
-        except Exception as e:
-            if args.exp_name is not None:
-                rich.print(f"[bold red]Error loading experiment {args.exp_name}: {e}")
+        exp_config = self._load_config(exp_path, custom_msg="experiment", verbose=args.exp_name is not None)
 
         # Load overriding config if given
-        _config = None
-        try:
-            _config = config_from_toml(args.config)
-        except Exception as e:
-            if args.config is not None:
-                rich.print(f"[bold red]Error loading config {args.config}: {e}")
-
-        if exp_defaults_config is None:
-            exp_defaults_config = OmegaConf.from_dotlist([])
-        if model_defaults_config is None:
-            model_defaults_config = OmegaConf.from_dotlist([])
-        if model_config is None:
-            model_config = OmegaConf.from_dotlist([])
-        if exp_config is None:
-            exp_config = OmegaConf.from_dotlist([])
-
-        if _config is None:
-            _config = OmegaConf.from_dotlist([])
+        _config = self._load_config(args.config, custom_msg="config", verbose=args.config is not None)
 
         config = OmegaConf.merge(
             _config,
