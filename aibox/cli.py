@@ -136,31 +136,41 @@ class AIBoxCLI:
                 rich.print(errormsg)
         return OmegaConf.from_dotlist([])
 
-    def parse_args(self, args=None) -> OmegaConf:
+    def _resolve(self, config):
+        config = OmegaConf.create(OmegaConf.to_object(config))
+        self.resolve_linked_props(config)
+        config.created = datetime.datetime.now().isoformat()
+        return config
+
+    def _get_cli_config(self, args=None):
         args, unk = self.parser.parse_known_args(args)
         cli_config = self._args_to_config(args)
         if len(unk) > 0:
             cli_config = OmegaConf.merge(cli_config, self._args_to_config(unk))
+        return cli_config
 
-        model_path, model_config = args.models_dir / f"{args.model_name}.toml", None
+    def parse_args(self, args=None) -> OmegaConf:
+        cli_config = self._get_cli_config(args)
+
+        model_path, model_config = Path(cli_config.models_dir) / f"{cli_config.model_name}.toml", None
         model_defaults_path, model_defaults_config = model_path.parent / "default.toml", None
-        exp_path, exp_config = args.exp_dir / f"{args.exp_name}.toml", None
+        exp_path, exp_config = Path(cli_config.exp_dir) / f"{cli_config.exp_name}.toml", None
         exp_defaults_path, exp_defaults_config = exp_path.parent / "default.toml", None
 
         # Load default model config if present
         model_defaults_config = self._load_config(model_defaults_path, custom_msg="model defaults")
 
         # Load model config
-        model_config = self._load_config(model_path, custom_msg="model", verbose=args.model_name is not None)
+        model_config = self._load_config(model_path, custom_msg="model", verbose=cli_config.model_name is not None)
 
         # Load default experiment config if present
         exp_defaults_config = self._load_config(exp_defaults_path, custom_msg="experiment defaults")
 
         # Load experiment config
-        exp_config = self._load_config(exp_path, custom_msg="experiment", verbose=args.exp_name is not None)
+        exp_config = self._load_config(exp_path, custom_msg="experiment", verbose=cli_config.exp_name is not None)
 
         # Load overriding config if given
-        _config = self._load_config(args.config, custom_msg="config", verbose=args.config is not None)
+        _config = self._load_config(cli_config.config, custom_msg="config", verbose=cli_config.config is not None)
 
         config = OmegaConf.merge(
             _config,
@@ -170,12 +180,7 @@ class AIBoxCLI:
             exp_config,
             cli_config,
         )
-        config = OmegaConf.create(OmegaConf.to_object(config))
-        self.resolve_linked_props(config)
-
-        config.created = datetime.datetime.now().isoformat()
-
-        return config
+        return self._resolve(config)
 
 
 def cli_main(args=None):
