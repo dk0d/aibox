@@ -9,7 +9,7 @@ import numpy as np
 
 
 class TensorImageToNumpy:
-    def __init__(self, denorm=True):
+    def __init__(self, denorm=True, mode="RGB"):
         """Transforms a CHW tensor to numpy image.
 
         Args:
@@ -28,9 +28,8 @@ class TensorImageToNumpy:
         #     ]
         # )
 
-        self.transform = Compose([ToPILImage(), Lambda(lambda img: np.array(img))])
+        self.transform = Compose([ToPILImage(mode=mode), Lambda(lambda img: np.array(img))])
 
     def __call__(self, image: torch.Tensor):
         out = self.transform(image)
-        print(out.shape)
         return out
