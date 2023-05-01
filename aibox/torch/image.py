@@ -11,18 +11,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 from skimage.util import compare_images
 
-from .transforms import TensorImageToNumpy
+from .transforms import ToNumpyImage
 
 
 def show_tensor_image(image: torch.Tensor):
-    reverseTransforms = TensorImageToNumpy()
+    reverseTransforms = ToNumpyImage()
     if len(image.shape) == 4:  # if batched image, show the first one
         image = image[0, :, :, :]
     plt.imshow(reverseTransforms(image))
 
 
 def image_diff(image1: torch.Tensor | np.ndarray, image2: torch.Tensor | np.ndarray, return_tensor=True):
-    to_numpy = TensorImageToNumpy()
+    to_numpy = ToNumpyImage()
     i1 = to_numpy(image1) if isinstance(image1, torch.Tensor) else image1
     i2 = to_numpy(image2) if isinstance(image2, torch.Tensor) else image2
     comp = compare_images(i1, i2, method="diff")

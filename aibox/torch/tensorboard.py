@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import itertools
 
-from aibox.torch.transforms import TensorImageToNumpy, ToPILImage
+from aibox.torch.transforms import ToPILImage
 
 
 def figure_to_image(figure, add_batch_dim=False) -> torch.Tensor:
