@@ -40,6 +40,8 @@ def init_from_cfg(config: DictConfig | dict, *args, **kwargs):
 
     Class = class_from_string(config["class_path"])
     params = config.get("args", dict())
+    for key in ["kwds", "kwargs", "init_args"]:
+        params.update(config.get(key, dict()))
     params.update(**kwargs)
     return Class(*args, **params)
 
