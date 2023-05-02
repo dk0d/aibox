@@ -228,9 +228,16 @@ class SlurmConfig:
         self.qos = qos
         self.mail_user = mail_user
         self.mail_type = mail_type
-        self.partition = partition
         self.distribution = distribution
-        self.gres = f"gpu:{gpu}:{ngpu}"
+
+        if gpu is not None:
+            assert ngpu is not None and ngpu > 0, "Must specify number of gpus"
+            self.partition = "gpu"
+            self.gres = f"gpu:{gpu}:{ngpu}"
+        else:
+            self.partition = partition
+            self.gres = None
+
         self.time = time
 
 
