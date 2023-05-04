@@ -49,7 +49,7 @@ def figure_to_image(figure, add_batch_dim=False) -> torch.Tensor:
 
 def make_image_figure(
     image: np.ndarray | torch.Tensor,
-    title,
+    title=None,
     figsize=(10, 10),
     cmap=None,
     **subplots_kwargs,
@@ -68,7 +68,8 @@ def make_image_figure(
     ax.imshow(image, cmap=cmap)
 
     # set title
-    ax.set_title(title)
+    if title is not None:
+        ax.set_title(title)
     ax.set_axis_off()
 
     return figure
@@ -76,7 +77,7 @@ def make_image_figure(
 
 def make_image_grid_figure(
     images,
-    title,
+    title=None,
     figsize=(10, 10),
     cmap=None,  # "afmhot",
     **grid_kwargs,
