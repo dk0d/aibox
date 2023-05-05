@@ -1,7 +1,10 @@
 import importlib
 from pathlib import Path
 from omegaconf import OmegaConf
-from omegaconf.dictconfig import DictConfig
+from omegaconf import DictConfig, ListConfig
+
+KeyConfig = DictConfig | dict
+Config = DictConfig | ListConfig | dict
 
 
 def print_config(config):
@@ -23,7 +26,7 @@ def class_from_string(string: str, reload=False):
     return getattr(importlib.import_module(module, package=None), cls)
 
 
-def init_from_cfg(config: DictConfig | dict, *args, **kwargs):
+def init_from_cfg(config: Config, *args, **kwargs):
     """Builds an object from the given configuration
 
     Args:
@@ -52,7 +55,7 @@ def config_from_toml_stream(stream):
     return OmegaConf.create(loads(stream).unwrap())
 
 
-def config_from_toml(path: Path | str) -> DictConfig:
+def config_from_toml(path: Path | str) -> Config:
     from tomlkit import load as tomlload
 
     with Path(path).open("r") as fp:
@@ -60,7 +63,7 @@ def config_from_toml(path: Path | str) -> DictConfig:
     return cfg
 
 
-def config_from_path(path: Path | str) -> DictConfig:
+def config_from_path(path: Path | str) -> Config:
     path = Path(path)
     if path.suffix in [".toml"]:
         return config_from_toml(path)
@@ -72,6 +75,37 @@ def config_from_path(path: Path | str) -> DictConfig:
     return OmegaConf.create(config)
 
 
+def flatten_dict(_dict: dict | list, keys_only=False, delimiter=".") -> dict:
+    _new_dict = {}
+
+    if isinstance(_dict, list):
+        entries = enumerate(_dict)
+    else:
+        entries = _dict.items()
+
+    for k, v in entries:
+        if isinstance(v, (dict, list)):
+            _d = flatten_dict(v)
+            for _k, _v in _d.items():
+                _new_dict[f"{k}{delimiter}{_k}"] = _v
+        else:
+            _new_dict[k] = v
+
+    if keys_only:
+        ks = list(_new_dict.keys())
+        ks.sort()
+        return ks
+
+    return _new_dict
+
+
+def config_to_dotlist(config: Config, delimiter="."):
+    """
+    Flattens a config to a dictionary with dot-separated keys
+    """
+    return flatten_dict(dict(**OmegaConf.to_container(config, resolve=True, enum_to_str=True)), delimiter=delimiter)
+
+
 def config_dump(config: OmegaConf, path: Path):
     from tomlkit import dump as tomldump
 
@@ -81,14 +115,13 @@ def config_dump(config: OmegaConf, path: Path):
         tomldump(c, fp)
 
 
-def remove_any_none_values(config: DictConfig | dict):
-    if isinstance(config, DictConfig):
+def remove_any_none_values(config: Config):
+    """
+    Recursively removes any None values from the config while keeping structure
+    """
+    if isinstance(config, Config):
         config = OmegaConf.to_object(config)
-    out = {
-        k: (remove_any_none_values(v) if isinstance(v, (dict, DictConfig)) else v)
-        for k, v in config.items()
-        if v is not None
-    }
+    out = {k: (remove_any_none_values(v) if isinstance(v, Config) else v) for k, v in config.items() if v is not None}
     return out
 
 

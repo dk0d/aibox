@@ -32,7 +32,8 @@ def multiprocess(
         poolMode (str): one of 'process' or 'thread'
         onResult (Optional[Callable]): Callback when result collected, takes in result object and the progress bar
             for updating post-fix or other operations.
-        maxJobs (int): max number of jobs to queue, adjust this if you get out of memory errors, especially for process pools on CPU
+        maxJobs (int): max number of jobs to queue, adjust this if you get out of memory errors, especially for process
+            pools on CPU
         desc (str): Description to display on progress bar
         showProg (bool): flag whether to show progess bar
 
