@@ -71,14 +71,12 @@ def multiprocess(
                 for a in itertools.islice(iterArgs, len(done)):
                     futures.add(pool.submit(func, **a))
         except KeyboardInterrupt:
-            print("Gracefully exiting...")
+            print("\nKeyboard interrupt detected, cancelling jobs...")
 
-            print("Cancelling jobs...")
-            for f in futures:
+            for f in tqdm.tqdm(futures, desc="Cancelling jobs"):
                 f.cancel()
 
-            print("Collecting results...")
-            for f in done:
+            for f in tqdm.tqdm(done, desc="Collecting results"):
                 res = f.result()
                 if onResult is not None:
                     onResult(res, prog)
