@@ -12,6 +12,7 @@ except ImportError:
 
 import io
 
+from PIL import Image
 import matplotlib.pyplot as plt
 import numpy as np
 import itertools
@@ -19,7 +20,7 @@ import itertools
 from aibox.torch.transforms import ToPILImage
 
 
-def figure_to_image(figure, add_batch_dim=False) -> torch.Tensor:
+def figure_to_tensor(figure, add_batch_dim=False) -> torch.Tensor:
     """
     Converts the matplotlib plot specified by 'figure' to a PNG image and
     returns it. The supplied figure is closed and inaccessible after this call.
@@ -44,6 +45,23 @@ def figure_to_image(figure, add_batch_dim=False) -> torch.Tensor:
         # Add the batch dimension
         image = image.unsqueeze(0)
 
+    return image
+
+
+def figure_to_image(figure) -> Image.Image:
+    """
+    Converts the matplotlib plot specified by 'figure' to a PNG image and
+    returns it. The supplied figure is closed and inaccessible after this call.
+    """
+    tensor = figure_to_tensor(figure, add_batch_dim=False)
+    image = ToPILImage()(tensor)
+    match tensor.shape[1]:
+        case 4:
+            image = image.convert("RGBA")
+        case 3:
+            image = image.convert("RGB")
+        case 1:
+            image = image.convert("L")
     return image
 
 
