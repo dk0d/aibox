@@ -57,23 +57,30 @@ def multiprocess(
 
     with ProcessPool(**poolKwds) as pool:
         futures = {pool.submit(func, **a) for a in itertools.islice(iterArgs, maxJobs)}
+        done = []  # to help with graceful exit
+        try:
+            while futures:
+                done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
+                for f in done:
+                    res = f.result()
+                    if onResult is not None:
+                        onResult(res, prog)
+                    if prog is not None:
+                        prog.update()
 
-        while futures:
-            done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
-            # try:
+                for a in itertools.islice(iterArgs, len(done)):
+                    futures.add(pool.submit(func, **a))
+        except KeyboardInterrupt:
+            print("Gracefully exiting...")
+
+            print("Cancelling jobs...")
+            for f in futures:
+                f.cancel()
+
+            print("Collecting results...")
             for f in done:
                 res = f.result()
                 if onResult is not None:
                     onResult(res, prog)
                 if prog is not None:
                     prog.update()
-
-            for a in itertools.islice(iterArgs, len(done)):
-                futures.add(pool.submit(func, **a))
-            # except KeyboardInterrupt:
-            #     for f in done:
-            #         res = f.result()
-            #         if onResult is not None:
-            #             onResult(res, prog)
-            #         if prog is not None:
-            #             prog.update()
