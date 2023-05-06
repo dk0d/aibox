@@ -21,6 +21,7 @@ def multiprocess(
     desc="Processing",
     mute=True,
     showProg=True,
+    stopAllOnException=False,
 ):
     """
     Multi-processing helper for handling job submission and
@@ -62,14 +63,26 @@ def multiprocess(
             while futures:
                 done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
                 for f in done:
-                    res = f.result()
-                    if onResult is not None:
-                        onResult(res, prog)
+                    try:
+                        res = f.result()
+                        if onResult is not None:
+                            onResult(res, prog)
+                    except Exception as e:
+                        print(e, f)
+                        if stopAllOnException:
+                            raise e
+                        try:
+                            if not f.cancelled():
+                                f.cancel()
+                        except Exception:
+                            pass
+
                     if prog is not None:
                         prog.update()
 
                 for a in itertools.islice(iterArgs, len(done)):
                     futures.add(pool.submit(func, **a))
+
         except KeyboardInterrupt:
             print("\nKeyboard interrupt detected, cancelling jobs...")
 
