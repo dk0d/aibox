@@ -23,7 +23,7 @@ readme = "README.md"
 license = { text = "MIT" }
 
 [tool.hatch.version]
-path = "aibox/__version__.py"
+path = "src/aibox/__version__.py"
 
 [tool.black]
 line-length = 120
@@ -45,7 +45,6 @@ torch = [
 test = "pytest tests"
 
 [tool.pdm.build]
-package-dir = "aibox/aibox"
 includes = []
 
 [tool.pdm.dev-dependencies]
