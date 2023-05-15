@@ -42,10 +42,9 @@ if mlflow is not None:
 
         def __init__(self, tensorboard_logdir=None, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            self.experiment
             tensorboard_logdir = tensorboard_logdir or Path("logs")
             self.writer = SummaryWriter(
-                logdir=(tensorboard_logdir / self.experiment_name / self.run_name).expanduser().resolve().as_posix()
+                logdir=(tensorboard_logdir / self.experiment_id / self.run_name).expanduser().resolve().as_posix()
             )
 
         def log_hyperparams(self, params: dict[str, Any] | Namespace | DictConfig) -> None:
