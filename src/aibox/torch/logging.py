@@ -40,6 +40,10 @@ if mlflow is not None:
         def tb_writer(self) -> SummaryWriter:
             return self.writer
 
+        @property
+        def log_dir(self) -> str:
+            return self.experiment.tracking_uri
+
         def __init__(self, tensorboard_logdir=None, *args, **kwargs):
             super().__init__(*args, **kwargs)
             tensorboard_logdir = tensorboard_logdir or Path("logs")
