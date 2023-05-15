@@ -12,6 +12,7 @@ try:
     from mlflow.client import MlflowClient
     from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger
     from torch.utils.tensorboard.writer import SummaryWriter
+    from pytorch_lightning.utilities.rank_zero import rank_zero_only
 except ImportError:
     print("MLFlow not installed, CombinedLogger will not be available.")
     mlflow = None
@@ -60,11 +61,7 @@ if mlflow is not None:
                 log_graph=True,
             )
 
-            # self.writer = SummaryWriter(
-            #     logdir=(tensorboard_logdir / self.experiment_id / self.run_id).expanduser().resolve().as_posix(),
-            #     log_graph=True,
-            # )
-
+        @rank_zero_only
         def log_hyperparams(self, params: dict[str, Any] | Namespace | DictConfig) -> None:
             if isinstance(params, DictConfig):
                 container = dict(**OmegaConf.to_container(params, resolve=True))
@@ -73,5 +70,6 @@ if mlflow is not None:
                 params = dict(**config_to_dotlist(params))
             super().log_hyperparams(params)
 
+        @rank_zero_only
         def log_graph(self, *args, **kwargs):
             return self._tb_logger.log_graph(*args, **kwargs)
