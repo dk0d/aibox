@@ -29,6 +29,10 @@ if mlflow is not None:
         """
 
         @property
+        def experiment_name(self) -> str:
+            return self._experiment_name
+
+        @property
         def mlflow_client(self) -> MlflowClient:
             return self.experiment
 
