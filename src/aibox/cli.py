@@ -6,19 +6,23 @@ import rich
 import datetime
 
 
-from .config import config_from_toml
+from .config import config_from_path
 
 
 class CLIException(Exception):
     pass
 
 
-def ExpandedPathType(s):
-    return Path(s).expanduser().resolve()
+def ExpandedPathType(s) -> Path | None:
+    if s is not None:
+        return Path(s).expanduser().resolve()
+    return None
 
 
-def cwd(path: str):
-    return ExpandedPathType(Path.cwd() / path)
+def cwd(path: str | None) -> Path | None:
+    if path is not None:
+        return ExpandedPathType(Path.cwd() / path)
+    return None
 
 
 class PathAction(Action):
@@ -63,13 +67,15 @@ class AIBoxCLI:
             "-ed",
             "--exp_dir",
             action=PathAction,
-            default=cwd("configs/experiments"),
+            default=None,
+            # default=cwd("configs/experiments"),
         )
         self.parser.add_argument(
             "-md",
             "--models_dir",
             action=PathAction,
-            default=cwd("configs/models"),
+            # default=cwd("configs/models"),
+            default=None,
         )
         self.parser.add_argument("--debug", action="store_true", default=False)
 
@@ -122,65 +128,103 @@ class AIBoxCLI:
             OmegaConf.update(conf, k, None, force_add=True)
         return conf
 
-    def _load_config(self, path: Path, custom_msg=None, verbose=False):
+    def _resolve_config_path(self, root: Path, name: str):
+        for ext in [".toml", ".yaml", ".yml"]:
+            path = (root / name).with_suffix(ext)
+            if path.exists():
+                return path
+        raise FileNotFoundError(f"Could not find YAML or TOML {name} in {root}")
+
+    def _load_config(self, root: Path | str, name: str, custom_msg=None, verbose=False):
         try:
-            config = config_from_toml(path)
-            return config
+            path = self._resolve_config_path(root, name)
+            config = config_from_path(path)
+            return path, config
         except Exception as e:
             if verbose:
                 errormsg = (
-                    f"[bold red]Error loading {custom_msg} {path.name}: {e}"
-                    if custom_msg is None
-                    else f"[bold red]Error loading {path.name}: {e}"
+                    f"[bold red]Error loading {custom_msg} {name}: {e}"
+                    if custom_msg is not None
+                    else f"[bold red]Error loading {name}: {e}"
                 )
                 rich.print(errormsg)
-        return OmegaConf.from_dotlist([])
+        return None, OmegaConf.from_dotlist([])
 
-    def _resolve(self, config):
+    def _resolve_links(self, config):
         config = OmegaConf.create(OmegaConf.to_object(config))
         self.resolve_linked_props(config)
         config.created = datetime.datetime.now().isoformat()
         return config
 
-    def _get_cli_config(self, args=None):
+    def _parse_cli_args(self, args=None):
         args, unk = self.parser.parse_known_args(args)
+
+        if args.exp_dir is None:
+            args.exp_dir = args.config_dir / "experiments"
+
+        if args.models_dir is None:
+            args.models_dir = args.config_dir / "models"
+
         cli_config = self._args_to_config(args)
+
         if len(unk) > 0:
             cli_config = OmegaConf.merge(cli_config, self._args_to_config(unk))
+
         return cli_config
 
+    def _resolve_config_from_root_name(self, root: Path | str, name: str, verbose=False):
+        root = Path(root)
+
+        # Look for root/name directory first
+        if name is not None and (root / name).exists() and (root / name).is_dir():
+            root = root / name
+
+        # Load defaults, if present
+        _, defaults = self._load_config(root=root, name="default", custom_msg=f"{name} defaults", verbose=False)
+
+        # Load config, if present
+        config_path, config = self._load_config(root=root, name=name, custom_msg=name, verbose=verbose)
+
+        # Merge defaults and config
+        config = OmegaConf.merge(defaults, config)
+
+        return config_path, config
+
     def parse_args(self, args=None) -> OmegaConf:
-        cli_config = self._get_cli_config(args)
+        cli_config = self._parse_cli_args(args)
 
-        model_path, model_config = Path(cli_config.models_dir) / f"{cli_config.model_name}.toml", None
-        model_defaults_path, model_defaults_config = model_path.parent / "default.toml", None
-        exp_path, exp_config = Path(cli_config.exp_dir) / f"{cli_config.exp_name}.toml", None
-        exp_defaults_path, exp_defaults_config = exp_path.parent / "default.toml", None
+        # model_path, model_config = Path(cli_config.models_dir) / f"{cli_config.model_name}.toml", None
+        # model_defaults_path, model_defaults_config = model_path.parent / "default.toml", None
+        # exp_path, exp_config = Path(cli_config.exp_dir) / f"{cli_config.exp_name}.toml", None
+        # exp_defaults_path, exp_defaults_config = exp_path.parent / "default.toml", None
 
-        # Load default model config if present
-        model_defaults_config = self._load_config(model_defaults_path, custom_msg="model defaults")
-
-        # Load model config
-        model_config = self._load_config(model_path, custom_msg="model", verbose=cli_config.model_name is not None)
-
-        # Load default experiment config if present
-        exp_defaults_config = self._load_config(exp_defaults_path, custom_msg="experiment defaults")
-
-        # Load experiment config
-        exp_config = self._load_config(exp_path, custom_msg="experiment", verbose=cli_config.exp_name is not None)
+        # Load Model Config
+        model_path, model_config = self._resolve_config_from_root_name(
+            root=cli_config.models_dir,
+            name=cli_config.model_name,
+            verbose=cli_config.model_name is not None,
+        )
+        exp_path, exp_config = self._resolve_config_from_root_name(
+            root=cli_config.exp_dir,
+            name=cli_config.exp_name,
+            verbose=cli_config.exp_name is not None,
+        )
 
         # Load overriding config if given
-        _config = self._load_config(cli_config.config, custom_msg="config", verbose=cli_config.config is not None)
+        _config = OmegaConf.from_dotlist([])
+        if cli_config.config is not None:
+            try:
+                _config = config_from_path(cli_config.config)
+            except Exception as e:
+                rich.print(f"[bold red]Error loading config {cli_config.config}: {e}")
 
         config = OmegaConf.merge(
             _config,
-            model_defaults_config,
             model_config,
-            exp_defaults_config,
             exp_config,
             cli_config,
         )
-        return self._resolve(config)
+        return self._resolve_links(config)
 
 
 def cli_main(args=None):

@@ -1,0 +1,30 @@
+[model]
+class_path = 'ae.models.DFCVAE'
+
+[model.args]
+name = 'default'
+hidden_dims = [32, 64, 128, 256, 512]
+latent_dim = 128
+
+[loss]
+class_path = 'pyicu.refics.ae.losses.DFCVAELoss'
+
+[loss.args]
+alpha = 1.0
+beta = 0.5
+
+[optimizer]
+class_path = 'torch.optim.Adam'
+
+[optimizer.args]
+lr = 0.005
+weight_decay = 0.0
+
+[scheduler]
+class_path = 'optim.lr_scheduler.ExponentialLR'
+
+[scheduler.args]
+gamma = 0.95
+
+[logging]
+name = 'DFCVAE'
