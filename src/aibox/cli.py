@@ -198,6 +198,14 @@ class AIBoxCLI:
         # exp_path, exp_config = Path(cli_config.exp_dir) / f"{cli_config.exp_name}.toml", None
         # exp_defaults_path, exp_defaults_config = exp_path.parent / "default.toml", None
 
+        # Load global default config
+        _, global_defaults = self._load_config(
+            root=self.config_dir,
+            name="default",
+            custom_msg="global defaults",
+            verbose=False,
+        )
+
         # Load Model Config
         model_path, model_config = self._resolve_config_from_root_name(
             root=cli_config.models_dir,
@@ -219,9 +227,9 @@ class AIBoxCLI:
                 rich.print(f"[bold red]Error loading config {cli_config.config}: {e}")
 
         config = OmegaConf.merge(
-            _config,
             model_config,
             exp_config,
+            _config,
             cli_config,
         )
         return self._resolve_links(config)

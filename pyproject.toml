@@ -2,21 +2,21 @@
 name = "aibox"
 description = "My AI utilities and helpers"
 authors = [
-    { name = "Daniel Capecci", email = "7775585+dk0d@users.noreply.github.com" },
+  { name = "Daniel Capecci", email = "7775585+dk0d@users.noreply.github.com" },
 ]
 dependencies = [
-    "tomlkit>=0.11.6",
-    "tqdm>=4.64.1",
-    "pyyaml>=6.0",
-    "pandas>=2.0.0",
-    "omegaconf>=2.3.0",
-    "ipython>=8.11.0",
-    "matplotlib>=3.7.1",
-    "torchinstaller>=0.5.8",
-    "rich>=13.3.4",
-    "tensorboard>=2.12.2",
-    "mlflow>=2.0.0",
-    "numpy>=1.23.2,<1.24.0",
+  "tomlkit>=0.11.6",
+  "tqdm>=4.64.1",
+  "pyyaml>=6.0",
+  "pandas>=2.0.0",
+  "omegaconf>=2.3.0",
+  "ipython>=8.11.0",
+  "matplotlib>=3.7.1",
+  "torchinstaller>=0.5.8",
+  "rich>=13.3.4",
+  "tensorboard>=2.12.2",
+  "mlflow>=2.0.0",
+  "numpy>=1.23.2,<1.24.0",
 ]
 dynamic = ["version"]
 requires-python = ">=3.10,<4.0"
@@ -35,12 +35,13 @@ line-length = 120
 [project.urls]
 
 [project.optional-dependencies]
-torch = [
-    "torch>=1.13.1",
-    "torchvision>=0.14.1",
-    "torchaudio>=0.13.1",
-    "pytorch-lightning>=1.9.4",
+docs = [
+  'mkdocs-material>=7.3.3',
+  "mkdocstrings[python]>=0.18",
+  "mkdocs-gen-files>=0.5.0",
+  "mike>=1.1.2",
 ]
+torch = ["torch", "torchvision", "torchaudio", "pytorch-lightning"]
 
 [tool.pdm.scripts]
 test = "pytest tests"
