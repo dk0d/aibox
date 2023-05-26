@@ -128,9 +128,9 @@ class AIBoxCLI:
             OmegaConf.update(conf, k, None, force_add=True)
         return conf
 
-    def _resolve_config_path(self, root: Path, name: str):
+    def _resolve_config_path(self, root: Path | str, name: str):
         for ext in [".toml", ".yaml", ".yml"]:
-            path = (root / name).with_suffix(ext)
+            path = (Path(root) / name).with_suffix(ext)
             if path.exists():
                 return path
         raise FileNotFoundError(f"Could not find YAML or TOML {name} in {root}")
@@ -200,19 +200,21 @@ class AIBoxCLI:
 
         # Load global default config
         _, global_defaults = self._load_config(
-            root=self.config_dir,
+            root=cli_config.config_dir,
             name="default",
             custom_msg="global defaults",
-            verbose=False,
+            verbose=True,
         )
 
         # Load Model Config
-        model_path, model_config = self._resolve_config_from_root_name(
+        _, model_config = self._resolve_config_from_root_name(
             root=cli_config.models_dir,
             name=cli_config.model_name,
             verbose=cli_config.model_name is not None,
         )
-        exp_path, exp_config = self._resolve_config_from_root_name(
+
+        # Load Experiment Config
+        _, exp_config = self._resolve_config_from_root_name(
             root=cli_config.exp_dir,
             name=cli_config.exp_name,
             verbose=cli_config.exp_name is not None,
@@ -227,6 +229,7 @@ class AIBoxCLI:
                 rich.print(f"[bold red]Error loading config {cli_config.config}: {e}")
 
         config = OmegaConf.merge(
+            global_defaults,
             model_config,
             exp_config,
             _config,

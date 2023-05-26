@@ -5,6 +5,7 @@ class_path = "path.to.Class"
 image_size = 128
 
 [trainer]
+accelerator = "ddp"
 
 [data]
 class_path = "path.to.DataModule"
