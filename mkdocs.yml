@@ -1,0 +1,19 @@
+site_name: aibox
+theme:
+  name: material
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - scripts/doc_gen.py
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            members_order: alphabetical
+            docstring_style: google
+extra:
+  version:
+    provider: mike
+markdown_extensions:
+  - toc
