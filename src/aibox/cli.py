@@ -183,12 +183,10 @@ class AIBoxCLI:
         config_path, config = self._load_config(root=root, name=name, custom_msg=name, verbose=verbose)
 
         # Load defaults, if present
-        if config_path is not None:
-            _, defaults = self._load_config(
-                root=config_path.parent, name="default", custom_msg=f"{name} defaults", verbose=False
-            )
-        else:
-            defaults = OmegaConf.from_dotlist([])
+        defaults_root = config_path.parent if config_path is not None else root
+        _, defaults = self._load_config(
+            root=defaults_root, name="default", custom_msg=f"{name} defaults", verbose=False
+        )
 
         # Merge defaults and config
         config = OmegaConf.merge(defaults, config)
