@@ -1,6 +1,6 @@
 from argparse import ArgumentParser, Action, Namespace
 from pathlib import Path
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 from typing import Any, Sequence
 import rich
 import datetime
@@ -179,18 +179,23 @@ class AIBoxCLI:
         if name is not None and (root / name).exists() and (root / name).is_dir():
             root = root / name
 
-        # Load defaults, if present
-        _, defaults = self._load_config(root=root, name="default", custom_msg=f"{name} defaults", verbose=False)
-
         # Load config, if present
         config_path, config = self._load_config(root=root, name=name, custom_msg=name, verbose=verbose)
+
+        # Load defaults, if present
+        if config_path is not None:
+            _, defaults = self._load_config(
+                root=config_path.parent, name="default", custom_msg=f"{name} defaults", verbose=False
+            )
+        else:
+            defaults = OmegaConf.from_dotlist([])
 
         # Merge defaults and config
         config = OmegaConf.merge(defaults, config)
 
         return config_path, config
 
-    def parse_args(self, args=None) -> OmegaConf:
+    def parse_args(self, args=None) -> DictConfig:
         cli_config = self._parse_cli_args(args)
 
         # model_path, model_config = Path(cli_config.models_dir) / f"{cli_config.model_name}.toml", None
