@@ -24,6 +24,7 @@ readme = "README.md"
 license = { text = "MIT" }
 
 [tool.hatch.version]
+source = 'regex_commit'
 path = "src/aibox/__version__.py"
 
 [tool.black]
@@ -53,7 +54,7 @@ includes = []
 test = ["pytest>=7.2.1"]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-regex-commit"]
 build-backend = "hatchling.build"
 
 # [build-system]
