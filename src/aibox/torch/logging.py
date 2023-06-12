@@ -82,4 +82,5 @@ if mlflow is not None:
         def finalize(self, status: str = "success") -> None:
             super().finalize(status)
             self._tb_logger.finalize(status)
-            self.experiment.log_artifacts(self.run_id, self._tb_logger.log_dir, "tensorboard_events")
+            if Path(self._tb_logger.log_dir).exists():
+                self.experiment.log_artifacts(self.run_id, self._tb_logger.log_dir, "tensorboard_events")
