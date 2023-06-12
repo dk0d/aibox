@@ -106,7 +106,6 @@ try:
                 checkpoints = _scan_checkpoints(checkpoint_callback, {})
                 if self.save_dir is not None:
                     for _, p, _, _ in checkpoints:
-                        # Artifact path on mlflow
                         if Path(p).is_relative_to(self.save_dir) and p in self._logged_model_time:
                             Path(p).unlink()
                     parent = list(set(Path(p).parent for _, p, _, _ in checkpoints))[0]
