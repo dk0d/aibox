@@ -2,6 +2,7 @@ from argparse import Namespace
 from pathlib import Path
 from typing import Any
 
+import yaml
 from omegaconf import DictConfig, OmegaConf
 
 # from lightning_fabric.fabric import rank_zero_experiment
@@ -9,6 +10,7 @@ from aibox.config import config_to_dotlist
 
 try:
     import shutil
+    import tempfile
 
     from lightning_fabric.loggers.logger import rank_zero_experiment, rank_zero_only
     from mlflow.client import MlflowClient
@@ -16,6 +18,7 @@ try:
     from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger
     from pytorch_lightning.loggers.mlflow import LOCAL_FILE_URI_PREFIX
     from pytorch_lightning.loggers.utilities import _scan_checkpoints
+    from torch import Tensor
     from torch.utils.tensorboard.writer import SummaryWriter
 
     class CombinedLogger(MLFlowLogger):
@@ -98,24 +101,19 @@ try:
 
         def _scan_and_log_checkpoints(self, checkpoint_callback: ModelCheckpoint) -> None:
             # get checkpoints to be saved with associated score
+            super()._scan_and_log_checkpoints(checkpoint_callback)
             try:
-                super()._scan_and_log_checkpoints(checkpoint_callback)
-
+                checkpoints = _scan_checkpoints(checkpoint_callback, {})
                 if self.save_dir is not None:
-                    checkpoints = _scan_checkpoints(checkpoint_callback, self._logged_model_time)
-                    parent = list(set(Path(p).parent for _, p, _, _ in checkpoints))[0]
                     for _, p, _, _ in checkpoints:
                         # Artifact path on mlflow
-                        artifact_path = f"model/checkpoints/{Path(p).stem}"
-                        if Path(p).is_relative_to(self.save_dir) and Path(artifact_path).exists():
+                        if Path(p).is_relative_to(self.save_dir) and p in self._logged_model_time:
                             Path(p).unlink()
+                    parent = list(set(Path(p).parent for _, p, _, _ in checkpoints))[0]
                     if parent.is_dir() and not list(parent.iterdir()):
                         shutil.rmtree(parent)
-
-            except Exception as e:
+            except Exception:
                 pass
 
 except ImportError:
     print("MLFlow not installed, CombinedLogger will not be available.")
-    mlflow = None
-    MLFlowLogger = None
