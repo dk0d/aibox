@@ -26,6 +26,7 @@ license = { text = "MIT" }
 [tool.hatch.version]
 source = 'regex_commit'
 path = "src/aibox/__version__.py"
+tag_sign = false
 
 [tool.black]
 line-length = 120
