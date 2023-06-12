@@ -5,14 +5,17 @@ from typing import Any
 from omegaconf import DictConfig, OmegaConf
 
 # from lightning_fabric.fabric import rank_zero_experiment
-
 from aibox.config import config_to_dotlist
 
 try:
+    import shutil
+
+    from lightning_fabric.loggers.logger import rank_zero_experiment, rank_zero_only
     from mlflow.client import MlflowClient
+    from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
     from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger
     from pytorch_lightning.loggers.mlflow import LOCAL_FILE_URI_PREFIX
-    from lightning_fabric.loggers.logger import rank_zero_experiment, rank_zero_only
+    from pytorch_lightning.loggers.utilities import _scan_checkpoints
     from torch.utils.tensorboard.writer import SummaryWriter
 
     class CombinedLogger(MLFlowLogger):
@@ -92,6 +95,25 @@ try:
             self._tb_logger.finalize(status)
             if Path(self._tb_logger.log_dir).exists():
                 self.experiment.log_artifacts(self.run_id, self._tb_logger.log_dir, "tensorboard_events")
+
+        def _scan_and_log_checkpoints(self, checkpoint_callback: ModelCheckpoint) -> None:
+            # get checkpoints to be saved with associated score
+            try:
+                super()._scan_and_log_checkpoints(checkpoint_callback)
+
+                if self.save_dir is not None:
+                    checkpoints = _scan_checkpoints(checkpoint_callback, self._logged_model_time)
+                    parent = list(set(Path(p).parent for _, p, _, _ in checkpoints))[0]
+                    for _, p, _, _ in checkpoints:
+                        # Artifact path on mlflow
+                        artifact_path = f"model/checkpoints/{Path(p).stem}"
+                        if Path(p).is_relative_to(self.save_dir) and Path(artifact_path).exists():
+                            Path(p).unlink()
+                    if parent.is_dir() and not list(parent.iterdir()):
+                        shutil.rmtree(parent)
+
+            except Exception as e:
+                pass
 
 except ImportError:
     print("MLFlow not installed, CombinedLogger will not be available.")
