@@ -3,22 +3,17 @@ from pathlib import Path
 from typing import Any
 
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning.loggers.logger import rank_zero_experiment
+
+# from lightning_fabric.fabric import rank_zero_experiment
 
 from aibox.config import config_to_dotlist
 
 try:
-    import mlflow
     from mlflow.client import MlflowClient
     from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger
-    from pytorch_lightning.utilities.rank_zero import rank_zero_only
+    from pytorch_lightning.loggers.mlflow import LOCAL_FILE_URI_PREFIX
+    from lightning_fabric.loggers.logger import rank_zero_experiment, rank_zero_only
     from torch.utils.tensorboard.writer import SummaryWriter
-except ImportError:
-    print("MLFlow not installed, CombinedLogger will not be available.")
-    mlflow = None
-    MLFlowLogger = None
-
-if mlflow is not None:
 
     class CombinedLogger(MLFlowLogger):
         """
@@ -49,7 +44,20 @@ if mlflow is not None:
         def log_dir(self) -> str:
             return self.experiment.tracking_uri
 
-        def __init__(self, root_log_dir=None, **kwargs):
+        @property
+        def save_dir(self) -> str | None:
+            """The root file directory in which MLflow experiments are saved.
+            fixes error in MLFlowLogger that uses lstrip and removes extra characters
+
+            Return:
+                Local path to the root experiment directory if the tracking uri is local.
+                Otherwise returns `None`.
+            """
+            if self._tracking_uri.startswith(LOCAL_FILE_URI_PREFIX):
+                return self._tracking_uri.removeprefix(LOCAL_FILE_URI_PREFIX)
+            return None
+
+        def __init__(self, root_log_dir=None, tb_log_graph=True, **kwargs):
             self.root_log_dir = Path(root_log_dir or "logs")
             self._tensorboard_logdir = (self.root_log_dir / "tbruns").expanduser().resolve()
             if "tracking_uri" not in kwargs:
@@ -62,7 +70,7 @@ if mlflow is not None:
                 save_dir=self._tensorboard_logdir.as_posix(),
                 name=self.experiment_id,
                 version=self.run_id,
-                log_graph=True,
+                log_graph=tb_log_graph,
             )
 
         @rank_zero_only
@@ -84,3 +92,8 @@ if mlflow is not None:
             self._tb_logger.finalize(status)
             if Path(self._tb_logger.log_dir).exists():
                 self.experiment.log_artifacts(self.run_id, self._tb_logger.log_dir, "tensorboard_events")
+
+except ImportError:
+    print("MLFlow not installed, CombinedLogger will not be available.")
+    mlflow = None
+    MLFlowLogger = None
