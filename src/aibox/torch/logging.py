@@ -2,7 +2,6 @@ from argparse import Namespace
 from pathlib import Path
 from typing import Any
 
-import yaml
 from omegaconf import DictConfig, OmegaConf
 
 # from lightning_fabric.fabric import rank_zero_experiment
@@ -10,7 +9,6 @@ from aibox.config import config_to_dotlist
 
 try:
     import shutil
-    import tempfile
 
     from lightning_fabric.loggers.logger import rank_zero_experiment, rank_zero_only
     from mlflow.client import MlflowClient
@@ -18,7 +16,6 @@ try:
     from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger
     from pytorch_lightning.loggers.mlflow import LOCAL_FILE_URI_PREFIX
     from pytorch_lightning.loggers.utilities import _scan_checkpoints
-    from torch import Tensor
     from torch.utils.tensorboard.writer import SummaryWriter
 
     class CombinedLogger(MLFlowLogger):
