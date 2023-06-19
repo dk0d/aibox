@@ -93,6 +93,20 @@ def fix_mlflow_artifact_paths(mlflow_root: Path):
                 rewrite_artifact_path(metadata_file, run_folder / "artifacts", artifact_path_key="artifact_uri")
 
 
+def get_mlflow_run_metas(mlruns_root: Path):
+    _configs = [
+        run_meta
+        for exp_dir in mlruns_root.glob("*")
+        if exp_dir.is_dir()
+        for run_dir in exp_dir.glob("*")
+        if run_dir.is_dir()
+        for run_meta in run_dir.glob("*.yaml")
+    ]
+    _configs = [yaml.load(c.read_text(), Loader=yaml.SafeLoader) for c in _configs]
+    _configs = [c for c in _configs if "run_id" in c]
+    return _configs
+
+
 def get_mlflow_checkpoints(mlruns_root: Path):
     """
     Returns a list of MLFlowCheckpointEntry objects
