@@ -7,7 +7,7 @@ try:
     from argparse import ArgumentParser
 
     from ..config import init_from_cfg
-    
+
 except ImportError:
     print("pytorch_lightning required to import these utilities")
     exit(1)
@@ -75,20 +75,20 @@ def nondefault_trainer_args(opt):
 #                 except FileNotFoundError:
 #                     pass
 
-class AIBoxLightningModule(pl.LightningModule):
-    
-    def __str__(self) -> str:
-        return f"{self.model.__class__.__name__}"
 
-    def __repr__(self):
-        return super().__str__()
+class AIBoxLightningModule(pl.LightningModule):
+    # def __str__(self) -> str:
+    #     return f"{self.model.__class__.__name__}"
+    #
+    # def __repr__(self):
+    #     return super().__str__()
 
     def __init__(self, optimizers, schedulers, loss, **kwargs):
         """
         Assumes loss, optimizers, and schedulers are all configuration dictionaries
         """
         super().__init__()
-            
+
         try:
             if loss is None:
                 self.loss_fn = None
@@ -99,13 +99,11 @@ class AIBoxLightningModule(pl.LightningModule):
             print(f"Exception {e}")
             exit(0)
 
-
         self.optimizers_cfg = optimizers
         self.schedulers_cfg = schedulers
         self.current_device = None
 
     def configure_optimizers(self):
-
         optims = []
         scheds = []
 
@@ -133,7 +131,6 @@ class AIBoxLightningModule(pl.LightningModule):
         if len(scheds) > 0 and len(optims) > 0:
             return optims, scheds
 
-
         return optims[0]
 
     # def _step(self, batch, batchIdx, optimizerIdx=0):
@@ -156,7 +153,6 @@ class AIBoxLightningModule(pl.LightningModule):
 
     # def _prefix_log(self, prefix, loss: dict):
     #     self.log_dict({f"{prefix}/{key}": val.item() for key, val in loss.items()}, sync_dist=True)
-
 
     # def training_step(self, batch, batchIdx, optimizerIdx=0):
     #     loss = self._step(batch, batchIdx, optimizerIdx)
