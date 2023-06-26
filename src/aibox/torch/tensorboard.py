@@ -13,6 +13,7 @@ except ImportError:
 import io
 
 from PIL import Image
+from matplotlib.figure import FigureBase
 import matplotlib.pyplot as plt
 import numpy as np
 import itertools
@@ -65,30 +66,31 @@ def figure_to_image(figure) -> Image.Image:
     return image
 
 
-def make_image_figure(
-    image: np.ndarray | torch.Tensor,
+def tensor_to_figure(
+    tensor: np.ndarray | torch.Tensor,
     title=None,
     figsize=(10, 10),
     cmap=None,
-    **subplots_kwargs,
+    **fig_kwargs,
 ):
-    if isinstance(image, torch.Tensor):
-        image = ToPILImage()(image)
-        # image = convert_to_HWC(make_np(image), input_format="CHW")
+    image = ToPILImage()(tensor)
 
     # Create a figure to contain the plot.
-    figure, ax = plt.subplots(1, 1, figsize=figsize, **subplots_kwargs)
+    figure = plt.figure(figsize=figsize, **fig_kwargs)
+
+    assert isinstance(figure, FigureBase)
 
     if cmap is not None:
         image = image.convert("L")
 
     # show image grid
-    ax.imshow(image, cmap=cmap)
+    plt.imshow(image, cmap=cmap)
 
     # set title
     if title is not None:
-        ax.set_title(title)
-    ax.set_axis_off()
+        plt.title(title)
+
+    plt.axis("off")
 
     return figure
 
@@ -106,7 +108,7 @@ def make_image_grid_figure(
 
     # create an image grid
     grid = torchvision.utils.make_grid(images, **grid_kwargs)
-    return make_image_figure(grid, title, figsize=figsize, cmap=cmap)
+    return tensor_to_figure(grid, title, figsize=figsize, cmap=cmap)
 
 
 def weight_histograms(writer: SummaryWriter, step: int, model: nn.Module, prefix="", per_kernel=True):
