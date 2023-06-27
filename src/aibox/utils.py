@@ -11,22 +11,32 @@ try:
     import mlflow
 
     def search_runs(
-        run_name,
         client: mlflow.MlflowClient,
+        run_name=None,
         experiment_ids: list[str] | None = None,
         max_results=1,
+        filter_string: str | None = None,
     ):
         if experiment_ids is None:
             experiment_ids = [e.experiment_id for e in client.search_experiments()]
 
+        filters = [(f"attributes.run_name LIKE '%{run_name}%'" if run_name is not None else None)]
+
+        if filter_string is not None:
+            filters.append(filter_string)
+
+        filters = [f for f in filters if f is not None]
+
+        filter_string = " AND ".join(f for f in filters if f is not None) if len(filters) > 0 else ""
+
         runs = client.search_runs(
             experiment_ids,
-            filter_string=f"attributes.run_name LIKE '%{run_name}%' ",
+            filter_string=filter_string,
             max_results=max_results,
             order_by=["metrics.`test/loss` DESC"],
         )
 
-        if len(runs) == 1:
+        if max_results == 1 and len(runs) == 1:
             return runs[0]
 
         return runs
