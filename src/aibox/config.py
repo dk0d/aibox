@@ -1,15 +1,16 @@
 import importlib
 from pathlib import Path
-from omegaconf import OmegaConf
-from omegaconf import DictConfig, ListConfig
+
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 KeyConfig = DictConfig | dict
 Config = DictConfig | ListConfig | dict
 
 
 def print_config(config):
-    import rich
     import json
+
+    import rich
 
     rich.print_json(json.dumps(OmegaConf.to_container(config)))
 
@@ -26,7 +27,13 @@ def class_from_string(string: str, reload=False):
     return getattr(importlib.import_module(module, package=None), cls)
 
 
-def init_from_cfg(config: Config, *args, **kwargs):
+def config_to_dict(config: DictConfig) -> dict:
+    container = OmegaConf.to_container(config, resolve=True)
+    assert isinstance(container, dict)
+    return container
+
+
+def init_from_cfg(config: KeyConfig, *args, **kwargs):
     """Builds an object from the given configuration
 
     Args:
@@ -38,13 +45,18 @@ def init_from_cfg(config: Config, *args, **kwargs):
         _type_: Object
     """
 
-    if "class_path" not in config:
+    if isinstance(config, DictConfig):
+        conf = config_to_dict(config)
+    else:
+        conf = dict(**config)
+
+    if "class_path" not in conf:
         raise KeyError("Expected key `class_path` to instantiate object")
 
-    Class = class_from_string(config["class_path"])
-    params = config.get("args", dict())
+    Class = class_from_string(conf["class_path"])
+    params = conf.get("args", dict())
     for key in ["kwds", "kwargs", "init_args"]:
-        params.update(**config.get(key, dict()))
+        params.update(**conf.get(key, dict()))
     params.update(**kwargs)
     return Class(*args, **params)
 
@@ -141,9 +153,8 @@ def _configs_to_toml(configs, source_dir: Path, out_dir: Path, name_fn=None):
 
 def json_to_toml(source_dir: Path, out_dir: Path, name_fn=None):
     try:
-        from pprint import pprint
-
         import json
+        from pprint import pprint
     except ImportError:
         print("yaml, tomlkit required")
         return

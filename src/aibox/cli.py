@@ -150,8 +150,9 @@ class AIBoxCLI:
                 rich.print(errormsg)
         return None, OmegaConf.from_dotlist([])
 
-    def _resolve_links(self, config):
+    def _resolve_links(self, config) -> DictConfig:
         config = OmegaConf.create(OmegaConf.to_object(config))
+        assert isinstance(config, DictConfig), f"Expected DictConfig, got {type(config)}"
         self.resolve_linked_props(config)
         config.created = datetime.datetime.now().isoformat()
         return config
