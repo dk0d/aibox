@@ -116,13 +116,13 @@ class AIBoxCLI:
             if len(unk) % 2 != 0:
                 rich.print("[bold red]Only key-value pair arguments are supported for OmegaConf")
                 raise CLIException("Only key-value pair arguments are supported for OmegaConf")
-            args = {k: v for k, v in _chunk(unk, 2)}
+            args_dict: dict = {k: v for k, v in _chunk(unk, 2)}
         else:
-            args = vars(args)
-        dotlist = [f"{k.lstrip('-')}={v}" for k, v in args.items()]
+            args_dict: dict = vars(args)
+        dotlist = [f"{k.lstrip('-')}={v}" for k, v in args_dict.items()]
         conf = OmegaConf.from_dotlist(dotlist)
         # Ensure None values instead of a string 'None'
-        for k, v in args.items():
+        for k, v in args_dict.items():
             if v is not None:
                 continue
             OmegaConf.update(conf, k, None, force_add=True)
