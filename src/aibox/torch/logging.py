@@ -39,8 +39,10 @@ try:
 
         @property
         @rank_zero_experiment
-        def tb_writer(self) -> SummaryWriter:
-            return self._tb_logger.experiment
+        def tb_writer(self) -> SummaryWriter | None:
+            if self.enable_tb_logging:
+                return self._tb_logger.experiment
+            return None
 
         @property
         @rank_zero_experiment
@@ -60,8 +62,15 @@ try:
                 return self._tracking_uri.removeprefix(LOCAL_FILE_URI_PREFIX)
             return None
 
-        def __init__(self, root_log_dir=None, tb_log_graph=True, **kwargs):
+        def __init__(
+            self,
+            root_log_dir=None,
+            tb_log_graph=True,
+            enable_tb_logging=False,
+            **kwargs,
+        ):
             self.root_log_dir = Path(root_log_dir or "logs")
+            self.enable_tb_logging = enable_tb_logging
             self._tensorboard_logdir = (self.root_log_dir / "tbruns").expanduser().resolve()
             if "tracking_uri" not in kwargs:
                 mlflow_logdir = f"file:{self.root_log_dir / 'mlruns'}"
@@ -69,12 +78,16 @@ try:
 
             super().__init__(**kwargs)
 
-            self._tb_logger = TensorBoardLogger(
-                save_dir=self._tensorboard_logdir.as_posix(),
-                name=self.experiment_id,
-                version=self.run_id,
-                log_graph=tb_log_graph,
-            )
+            if self.enable_tb_logging:
+                self._tb_logger = TensorBoardLogger(
+                    save_dir=self._tensorboard_logdir.as_posix(),
+                    name=self.experiment_id,
+                    version=self.run_id,
+                    log_graph=tb_log_graph,
+                )
+            else:
+                self._tensorboard_logdir = None
+                self._tb_logger = None
 
         @rank_zero_only
         def log_hyperparams(self, params: dict[str, Any] | Namespace | DictConfig) -> None:
@@ -86,15 +99,28 @@ try:
             super().log_hyperparams(params)
 
         @rank_zero_only
+        def log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
+            super().log_metrics(metrics, step)
+            if self.enable_tb_logging:
+                self._tb_logger.log_metrics(metrics, step)
+
+        @rank_zero_only
         def log_graph(self, *args, **kwargs):
-            return self._tb_logger.log_graph(*args, **kwargs)
+            if self.enable_tb_logging:
+                return self._tb_logger.log_graph(*args, **kwargs)
+
+        @rank_zero_only
+        def log_tags(self, tags: dict[str, Any]):
+            for tag, value in tags.items():
+                self.experiment.set_tag(self.run_id, tag, value)
 
         @rank_zero_only
         def finalize(self, status: str = "success") -> None:
             super().finalize(status)
-            self._tb_logger.finalize(status)
-            if Path(self._tb_logger.log_dir).exists():
-                self.experiment.log_artifacts(self.run_id, self._tb_logger.log_dir, "tensorboard_events")
+            if self.enable_tb_logging:
+                self._tb_logger.finalize(status)
+                if Path(self._tb_logger.log_dir).exists():
+                    self.experiment.log_artifacts(self.run_id, self._tb_logger.log_dir, "tensorboard_events")
 
         def _scan_and_log_checkpoints(self, checkpoint_callback: ModelCheckpoint) -> None:
             # get checkpoints to be saved with associated score
