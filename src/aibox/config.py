@@ -7,6 +7,14 @@ KeyConfig = DictConfig | dict
 Config = DictConfig | ListConfig | dict
 
 
+def is_list(x) -> bool:
+    return OmegaConf.is_list(x) or isinstance(x, list)
+
+
+def is_dict(x) -> bool:
+    return OmegaConf.is_dict(x) or isinstance(x, dict)
+
+
 def print_config(config):
     import json
 
