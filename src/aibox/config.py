@@ -95,6 +95,10 @@ def config_from_toml(path: Path | str) -> Config:
     return cfg
 
 
+def config_merge(*args, **kwargs):
+    return OmegaConf.merge(*args, **kwargs)
+
+
 def config_from_path(path: Path | str) -> Config:
     path = Path(path)
     if path.suffix in [".toml"]:
