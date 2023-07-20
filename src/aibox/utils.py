@@ -12,6 +12,11 @@ def as_path(path: str | Path) -> Path:
     return Path(path).expanduser().resolve()
 
 
+def print(*args, **kwargs):
+    args = [a if isinstance(a, str) else pformat(a) for a in args]
+    rprint(*args, **kwargs)
+
+
 try:
     import mlflow
 
@@ -197,38 +202,3 @@ def get_mlflow_checkpoints(mlruns_root: Path):
         for p in mlruns_root.glob("**/*.ckpt")
     ]
     return checkpoints
-
-
-# mlruns_root = Path("logs/mlruns")
-#
-# # print(get_run_metas(mlruns_root))
-#
-# client = mlflow.MlflowClient(mlruns_root.as_posix())
-# experiments = client.search_experiments()
-# # print(experiments)
-# # print(runs[0].data)
-# # print([client.list_artifacts(r.info.run_id) for r in runs])
-# experiment = client.get_experiment_by_name("debug")
-# assert experiment is not None
-# print(experiment)
-# runs = client.search_runs(experiment_ids=[experiment.experiment_id])
-# run = runs[0]
-# artifacts = client.list_artifacts(run.info.run_id)
-# # paths = client.download_artifacts(run.info.run_id, "model")
-#
-# model_dir = mlflow.artifacts.download_artifacts(
-#     run_id=run.info.run_id, artifact_path="model", tracking_uri=mlruns_root.as_posix()
-# )
-# print(model_dir)
-# checkpoints = get_checkpoints(Path(model_dir))
-# latest = [c for c in checkpoints if "best" in c.aliases][-1]
-# print(latest)
-# config_path = mlflow.artifacts.download_artifacts(
-#     run_id=run.info.run_id, artifact_path="config.yml", tracking_uri=mlruns_root.as_posix()
-# )
-# print(config_path)
-
-
-def print(*args, **kwargs):
-    args = [a if isinstance(a, str) else pformat(a) for a in args]
-    rprint(*args, **kwargs)
