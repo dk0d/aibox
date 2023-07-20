@@ -8,9 +8,6 @@ from rich import print as rprint
 from .config import class_from_string, config_from_path
 
 
-def dict_to_args(d: dict):
-    return " ".join([f"--{k} {v}" for k, v in d.items()]).split(' ')
-
 
 try:
     import mlflow
