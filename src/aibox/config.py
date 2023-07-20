@@ -34,6 +34,11 @@ def class_from_string(string: str, reload=False):
         module, cls = "__main__", string
     return getattr(importlib.import_module(module, package=None), cls)
 
+def config_from_dict(d: dict) -> DictConfig:
+    return OmegaConf.create(d)
+
+def config_from_dotlist(dotlist: list[str]):
+    return OmegaConf.from_dotlist(dotlist)
 
 def config_to_dict(config: Config) -> dict:
     if isinstance(config, dict):
