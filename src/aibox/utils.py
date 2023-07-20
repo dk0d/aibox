@@ -8,6 +8,9 @@ from rich import print as rprint
 from .config import class_from_string, config_from_path
 
 
+def as_path(path: str | Path) -> Path:
+    return Path(path).expanduser().resolve()
+
 
 try:
     import mlflow
