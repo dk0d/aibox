@@ -42,13 +42,11 @@ try:
         def mlflow_client(self) -> MlflowClient:
             return self.experiment
 
-
-
-        @property 
+        @property
         @rank_zero_only
         def has_tb_logger(self) -> bool:
             return self._tb_logger is not None
-        
+
         @property
         @rank_zero_experiment
         def tb_writer(self) -> SummaryWriter | None:
@@ -149,11 +147,11 @@ try:
             except Exception:
                 pass
 
-
-
-
-
     class ImageLogger(Callback):
+        """
+        Callback that logs images to Tensorboard or MLFlow
+        """
+
         def __init__(
             self,
             batch_frequency,
@@ -179,7 +177,7 @@ try:
 
             self.logger_log_images = {
                 TensorBoardLogger: self._tensorboard,
-                # pl.loggers.WandbLogger: self._wandb,
+                MLFlowLogger: self._mlflow,
             }
             self.log_steps = [
                 frequency_base**n for n in range(int(np.log(self.batch_freq) / np.log(frequency_base)) + 1)
@@ -200,12 +198,11 @@ try:
         @rank_zero_only
         def _mlflow(self, pl_module, images, split, batch_idx=None):
             # TODO:
-            pass
-            # for k in images:
-            #     grid = torchvision.utils.make_grid(images[k], nrow=self.nrow)
-            #     grid = (grid + 1.0) / 2.0
-            #     label = f"{split}/{k}" if batch_idx is None else f"{split}/{k}_{batch_idx}"
-            #     pl_module.logger.experiment.add_image(label, grid.detach().cpu(), pl_module.global_step)
+            for k in images:
+                grid = torchvision.utils.make_grid(images[k], nrow=self.nrow)
+                grid = (grid + 1.0) / 2.0
+                label = f"{split}/{k}" if batch_idx is None else f"{split}/{k}_{batch_idx}"
+                pl_module.logger.experiment.add_image(label, grid.detach().cpu(), pl_module.global_step)
 
         @rank_zero_only
         def _wandb(self, pl_module, images, batch_idx, split):
@@ -308,6 +305,6 @@ try:
 
             if pl_module.global_step > 0 or self.log_first_step:
                 self.log_img(pl_module, batch, batch_idx, split="test")
-                
+
 except ImportError:
     print("MLFlow not installed, CombinedLogger will not be available.")
