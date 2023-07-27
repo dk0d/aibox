@@ -2,21 +2,21 @@ try:
     import torch
     import torch.nn as nn
     import torchvision
-    from torch.utils.tensorboard.writer import SummaryWriter
-    from torch.utils.tensorboard._utils import convert_to_HWC
     from torch.utils.tensorboard._convert_np import make_np
-    from torchvision.io.image import decode_image, ImageReadMode
+    from torch.utils.tensorboard._utils import convert_to_HWC
+    from torch.utils.tensorboard.writer import SummaryWriter
+    from torchvision.io.image import ImageReadMode, decode_image
 except ImportError:
     print("pytorch required for these utilities")
     exit(1)
 
 import io
+import itertools
 
-from PIL import Image
-from matplotlib.figure import FigureBase
 import matplotlib.pyplot as plt
 import numpy as np
-import itertools
+from matplotlib.figure import FigureBase
+from PIL import Image
 
 from aibox.torch.transforms import ToPILImage
 
@@ -72,7 +72,7 @@ def tensor_to_figure(
     figsize=(10, 10),
     cmap=None,
     **fig_kwargs,
-):
+) -> plt.FigureBase:
     image = ToPILImage()(tensor)
 
     # Create a figure to contain the plot.
@@ -101,7 +101,7 @@ def make_image_grid_figure(
     figsize=(10, 10),
     cmap=None,  # "afmhot",
     **grid_kwargs,
-) -> plt.Figure:
+) -> plt.FigureBase:
     """
     Return a figure from the images as a matplotlib figure.
     """
