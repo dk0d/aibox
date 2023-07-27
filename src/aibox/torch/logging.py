@@ -50,7 +50,7 @@ try:
         @property
         @rank_zero_experiment
         def tb_writer(self) -> SummaryWriter | None:
-            if self.has_tb_logger:
+            if self._tb_logger is not None:
                 return self._tb_logger.experiment
             return None
 
@@ -120,6 +120,23 @@ try:
                 return self._tb_logger.log_graph(*args, **kwargs)
 
         @rank_zero_only
+        def log_image(
+            self,
+            tag: str,
+            images: np.ndarray | torch.Tensor,
+            global_step=None,
+            dataformats="CHW",
+        ):
+            if self.enable_tb_logging and self._tb_logger is not None:
+                self.tb_writer.add_image(tag, images, global_step, dataformats)
+
+            # run_id: str, image: Union["numpy.ndarray", "PIL.Image.Image"], artifact_file: str
+            self.mlflow_client.log_image(
+                self.run_id,
+                images,
+            )
+
+        @rank_zero_only
         def log_tags(self, tags: dict[str, Any]):
             for tag, value in tags.items():
                 self.experiment.set_tag(self.run_id, tag, value)
@@ -147,7 +164,7 @@ try:
             except Exception:
                 pass
 
-    class ImageLogger(Callback):
+    class LogImagesCallback(Callback):
         """
         Callback that logs images to Tensorboard or MLFlow
         """
@@ -189,20 +206,26 @@ try:
 
         @rank_zero_only
         def _tensorboard(self, pl_module, images, split, batch_idx=None):
+            writer: SummaryWriter = pl_module.logger.experiment
+            if not isinstance(writer, SummaryWriter):
+                return
             for k in images:
                 grid = torchvision.utils.make_grid(images[k], nrow=self.nrow)
                 grid = (grid + 1.0) / 2.0
                 label = f"{split}/{k}" if batch_idx is None else f"{split}/{k}_{batch_idx}"
-                pl_module.logger.experiment.add_image(label, grid.detach().cpu(), pl_module.global_step)
+                writer.add_image(label, grid.detach().cpu(), pl_module.global_step)
 
         @rank_zero_only
         def _mlflow(self, pl_module, images, split, batch_idx=None):
             # TODO:
+            logger: CombinedLogger = pl_module.logger
+            if not isinstance(logger, CombinedLogger):
+                return
             for k in images:
                 grid = torchvision.utils.make_grid(images[k], nrow=self.nrow)
                 grid = (grid + 1.0) / 2.0
                 label = f"{split}/{k}" if batch_idx is None else f"{split}/{k}_{batch_idx}"
-                pl_module.logger.experiment.add_image(label, grid.detach().cpu(), pl_module.global_step)
+                logger.log_image(label, grid.detach().cpu(), pl_module.global_step)
 
         @rank_zero_only
         def _wandb(self, pl_module, images, batch_idx, split):
@@ -250,9 +273,9 @@ try:
                     pl_module.eval()
 
                 with torch.no_grad():
-                    images = pl_module.log_images(batch, split=split, **self.log_images_kwargs)
+                    images: list[torch.Tensor] = pl_module.log_images(batch, split=split, **self.log_images_kwargs)
 
-                for k in images:
+                for k in images:  # allows for multiple images per batch
                     N = min(images[k].shape[0], self.max_images)
                     images[k] = images[k][:N]
                     if isinstance(images[k], torch.Tensor):
@@ -260,10 +283,9 @@ try:
                         if self.clamp:
                             images[k] = torch.clamp(images[k], -1.0, 1.0)
 
-                self.log_local(
-                    pl_module.logger.save_dir, split, images, pl_module.global_step, pl_module.current_epoch, batch_idx
-                )
-
+                # self.log_local(
+                #     pl_module.logger.save_dir, split, images, pl_module.global_step, pl_module.current_epoch, batch_idx
+                # )
                 logger_log_images = self.logger_log_images.get(logger, lambda *args, **kwargs: None)
                 logger_log_images(pl_module, images, pl_module.global_step, split)
 
