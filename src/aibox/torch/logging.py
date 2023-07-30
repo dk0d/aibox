@@ -6,8 +6,6 @@ from omegaconf import DictConfig, OmegaConf
 
 # from lightning_fabric.fabric import rank_zero_experiment
 from aibox.config import config_to_dotlist
-from aibox.torch.image import tensor_to_rgb
-from aibox.torch.tensorboard import tensor_to_figure
 
 try:
     import shutil
