@@ -4,7 +4,6 @@ from typing import Any
 
 from omegaconf import DictConfig, OmegaConf
 
-# from lightning_fabric.fabric import rank_zero_experiment
 from aibox.config import config_to_dotlist
 
 try:
@@ -13,14 +12,15 @@ try:
     import numpy as np
     import torch
     import torchvision
-    from lightning_fabric.loggers.logger import rank_zero_experiment, rank_zero_only
+    from lightning.fabric.loggers.logger import rank_zero_experiment
+    from lightning.fabric.utilities.rank_zero import rank_zero_only
+    from lightning.pytorch.callbacks import Callback
+    from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
+    from lightning.pytorch.loggers import MLFlowLogger, TensorBoardLogger
+    from lightning.pytorch.loggers.mlflow import LOCAL_FILE_URI_PREFIX
+    from lightning.pytorch.loggers.utilities import _scan_checkpoints
     from mlflow.client import MlflowClient
     from PIL import Image
-    from pytorch_lightning.callbacks import Callback
-    from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
-    from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger
-    from pytorch_lightning.loggers.mlflow import LOCAL_FILE_URI_PREFIX
-    from pytorch_lightning.loggers.utilities import _scan_checkpoints
     from torch.utils.tensorboard.writer import SummaryWriter
 
     class CombinedLogger(MLFlowLogger):

@@ -1,21 +1,18 @@
 from functools import partial
 
-from aibox.config import KeyConfig
-
 try:
-    import pytorch_lightning as pl
-    from pytorch_lightning.cli import LightningArgumentParser
-    from torch.utils.data import Dataset, IterableDataset, DataLoader
     import multiprocessing as mp
-    import omegaconf as oc
-    from rich import print
-
     from argparse import ArgumentParser
 
-    from ..config import init_from_cfg, is_list, is_dict
+    import lightning.pytorch as pl
+    from lightning.pytorch.cli import LightningArgumentParser
+    from rich import print
+    from torch.utils.data import DataLoader, Dataset, IterableDataset
+
+    from ..config import init_from_cfg, is_dict, is_list
 
 except ImportError:
-    print("pytorch_lightning required to import these utilities")
+    print("lightning.pytorch required to import these utilities")
     exit(1)
 
 

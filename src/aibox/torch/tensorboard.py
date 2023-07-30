@@ -195,7 +195,7 @@ def make_confusion_matrix_image(predictions, labels, class_names):
 
 
 try:
-    from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
+    from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
 
     class TBLogger(TensorBoardLogger):
         @property
