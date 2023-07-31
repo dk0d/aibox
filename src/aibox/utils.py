@@ -100,6 +100,21 @@ except ImportError:
     pass
 
 
+def chunk(iterable, n):
+    """
+    Yield successive n-sized chunks from iterable.
+
+    Args:
+        iterable: the iterable to chunk
+        n: the size of each chunk
+
+    Returns:
+        a generator that yields chunks of size n from iterable
+    """
+    for i in range(0, len(iterable), n):
+        yield iterable[i : i + n]
+
+
 @dataclass
 class MLFlowCheckpointEntry:
     path: Path
