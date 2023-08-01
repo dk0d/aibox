@@ -1,10 +1,10 @@
 import importlib
 from pathlib import Path
+from typing import TypeAlias
 
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
-KeyConfig = DictConfig | dict
-Config = DictConfig | ListConfig | dict
+Config: TypeAlias = DictConfig  | dict
 
 
 def is_list(x) -> bool:
@@ -48,7 +48,7 @@ def config_to_dict(config: Config) -> dict:
     return container
 
 
-def init_from_cfg(config: KeyConfig, *args, **kwargs):
+def init_from_cfg(config: Config, *args, **kwargs):
     """Builds an object from the given configuration
 
     Args:
@@ -142,7 +142,7 @@ def config_to_dotlist(config: Config, delimiter="."):
     return flatten_dict(dict(**OmegaConf.to_container(config, resolve=True, enum_to_str=True)), delimiter=delimiter)
 
 
-def config_dump(config: KeyConfig, path: Path):
+def config_dump(config: Config, path: Path):
     from tomlkit import dump as tomldump
 
     with path.open("w") as fp:
