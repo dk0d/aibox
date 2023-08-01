@@ -4,7 +4,6 @@ from typing import Any
 
 from omegaconf import DictConfig, OmegaConf
 
-# from lightning_fabric.fabric import rank_zero_experiment
 from aibox.config import config_to_dotlist
 
 try:
@@ -13,14 +12,15 @@ try:
     import numpy as np
     import torch
     import torchvision
-    from lightning_fabric.loggers.logger import rank_zero_experiment, rank_zero_only
+    from lightning.fabric.loggers.logger import rank_zero_experiment
+    from lightning.fabric.utilities.rank_zero import rank_zero_only
+    from lightning.pytorch.callbacks import Callback
+    from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
+    from lightning.pytorch.loggers import MLFlowLogger, TensorBoardLogger
+    from lightning.pytorch.loggers.mlflow import LOCAL_FILE_URI_PREFIX
+    from lightning.pytorch.loggers.utilities import _scan_checkpoints
     from mlflow.client import MlflowClient
     from PIL import Image
-    from pytorch_lightning.callbacks import Callback
-    from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
-    from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger
-    from pytorch_lightning.loggers.mlflow import LOCAL_FILE_URI_PREFIX
-    from pytorch_lightning.loggers.utilities import _scan_checkpoints
     from torch.utils.tensorboard.writer import SummaryWriter
 
     class CombinedLogger(MLFlowLogger):
@@ -134,6 +134,7 @@ try:
             self.mlflow_client.log_image(
                 self.run_id,
                 images,
+                artifact_file=f"{tag}.png",
             )
 
         @rank_zero_only
@@ -166,7 +167,10 @@ try:
 
     class LogImagesCallback(Callback):
         """
-        Callback that logs images to Tensorboard or MLFlow
+        Callback that logs images to lightning loggers.
+
+        Supports TensorBoardLogger and CombinedLogger, and MLFlowLogger.
+
         """
 
         def __init__(
@@ -204,6 +208,9 @@ try:
             self.clamp = clamp
             self.log_images_kwargs = log_images_kwargs if log_images_kwargs is not None else {}
 
+        def _NOOP_log(self, *args, **kwargs):
+            pass
+
         @rank_zero_only
         def _tensorboard(self, pl_module, images, split, batch_idx=None):
             writer: SummaryWriter = pl_module.logger.experiment
@@ -217,40 +224,29 @@ try:
 
         @rank_zero_only
         def _mlflow(self, pl_module, images, split, batch_idx=None):
-            # TODO:
-            logger: CombinedLogger = pl_module.logger
-            if not isinstance(logger, CombinedLogger):
+            logger = pl_module.logger.experiment
+            if not isinstance(logger, (CombinedLogger, MLFlowLogger)):
                 return
             for k in images:
                 grid = torchvision.utils.make_grid(images[k], nrow=self.nrow)
                 grid = (grid + 1.0) / 2.0
                 label = f"{split}/{k}" if batch_idx is None else f"{split}/{k}_{batch_idx}"
-                logger.log_image(label, grid.detach().cpu(), pl_module.global_step)
-
-        @rank_zero_only
-        def _wandb(self, pl_module, images, batch_idx, split):
-            raise ValueError("No way wandb")
-            # grids = dict()
-            # for k in images:
-            #     grid = torchvision.utils.make_grid(images[k])
-            #     grids[f"{split}/{k}"] = wandb.Image(grid)
-            # pl_module.logger.experiment.log(grids)
-
-        @rank_zero_only
-        def _testtube(self, pl_module, images, batch_idx, split):
-            for k in images:
-                grid = torchvision.utils.make_grid(images[k])
-                grid = (grid + 1.0) / 2.0  # -1,1 -> 0,1; c,h,w
-
-                tag = f"{split}/{k}"
-                pl_module.logger.experiment.add_image(tag, grid, global_step=pl_module.global_step)
+                if isinstance(logger, CombinedLogger):
+                    # pass to logger instead in case combined logger is using both tensorboard and MLFlow
+                    logger.log_image(label, grid.detach().cpu(), pl_module.global_step)
+                else:
+                    client: MlflowClient = logger.experiment
+                    client.log_image(
+                        logger.run_id,
+                        images.detach().cpu(),
+                        artifact_file=f"{label}.png",
+                    )
 
         @rank_zero_only
         def log_local(self, save_dir, split, images, global_step, current_epoch, batch_idx):
             root = Path(save_dir) / "images" / split
             for k in images:
                 grid = torchvision.utils.make_grid(images[k], nrow=self.nrow)
-
                 grid = grid.transpose(0, 1).transpose(1, 2).squeeze(-1)
                 grid = grid.numpy().astype(np.uint8)
                 filename = "{}_gs-{:06}_e-{:06}_b-{:06}.png".format(k, global_step, current_epoch, batch_idx)
@@ -258,7 +254,7 @@ try:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 Image.fromarray(grid).save(path)
 
-        def log_img(self, pl_module, batch, batch_idx, split="train"):
+        def log_image(self, pl_module, batch, batch_idx, split="train"):
             check_idx = batch_idx if self.log_on_batch_idx else pl_module.global_step
             if (
                 self.check_frequency(check_idx)
@@ -286,8 +282,8 @@ try:
                 # self.log_local(
                 #     pl_module.logger.save_dir, split, images, pl_module.global_step, pl_module.current_epoch, batch_idx
                 # )
-                logger_log_images = self.logger_log_images.get(logger, lambda *args, **kwargs: None)
-                logger_log_images(pl_module, images, pl_module.global_step, split)
+                _logger_log_images = self.logger_log_images.get(logger, self._NOOP_log)
+                _logger_log_images(pl_module, images, pl_module.global_step, split)
 
                 if is_train:
                     pl_module.train()
@@ -312,21 +308,21 @@ try:
                 return
 
             if pl_module.global_step > 0 or self.log_first_step:
-                self.log_img(pl_module, batch, trainer.global_step, split="train")
+                self.log_image(pl_module, batch, trainer.global_step, split="train")
 
         def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
             if self.disabled:
                 return
 
             if pl_module.global_step > 0:
-                self.log_img(pl_module, batch, batch_idx, split="val")
+                self.log_image(pl_module, batch, batch_idx, split="val")
 
         def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
             if self.disabled:
                 return
 
             if pl_module.global_step > 0 or self.log_first_step:
-                self.log_img(pl_module, batch, batch_idx, split="test")
+                self.log_image(pl_module, batch, batch_idx, split="test")
 
-except ImportError:
-    print("MLFlow not installed, CombinedLogger will not be available.")
+except ImportError as e:
+    print(f"Logging import error: {e}")

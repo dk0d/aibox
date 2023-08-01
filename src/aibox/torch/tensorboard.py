@@ -49,20 +49,40 @@ def figure_to_tensor(figure, add_batch_dim=False) -> torch.Tensor:
     return image
 
 
+def tensors_to_images(tensors: torch.Tensor, **make_grid_kwargs) -> Image.Image:
+    """Return a grid of images from the tensors as a PIL image.
+
+    Args:
+        tensors: A 4D mini-batch tensor of shape (B, C, H, W).
+        make_grid_kwargs: Keyword arguments to pass to torchvision.utils.make_grid.
+
+    Returns:
+        A PIL image.
+    """
+    grid = torchvision.utils.make_grid(tensors, **make_grid_kwargs)
+    return tensor_to_image(grid)
+
+
+def tensor_to_image(tensor: torch.Tensor) -> Image.Image:
+    """Converts a torch tensor to a PIL image.
+
+    Args:
+        tensor: A 3D or 4D torch tensor of shape (C, H, W) or (B, C, H, W).
+
+    Returns:
+        A PIL image.
+    """
+    image = ToPILImage()(tensor)
+    return image
+
+
 def figure_to_image(figure) -> Image.Image:
     """
     Converts the matplotlib plot specified by 'figure' to a PNG image and
     returns it. The supplied figure is closed and inaccessible after this call.
     """
     tensor = figure_to_tensor(figure, add_batch_dim=False)
-    image = ToPILImage()(tensor)
-    match tensor.shape[1]:
-        case 4:
-            image = image.convert("RGBA")
-        case 3:
-            image = image.convert("RGB")
-        case 1:
-            image = image.convert("L")
+    image = tensor_to_image(tensor)
     return image
 
 
@@ -175,7 +195,7 @@ def make_confusion_matrix_image(predictions, labels, class_names):
 
 
 try:
-    from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
+    from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
 
     class TBLogger(TensorBoardLogger):
         @property

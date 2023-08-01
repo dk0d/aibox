@@ -4,8 +4,7 @@ from omegaconf import OmegaConf, DictConfig
 from typing import Any, Sequence
 import rich
 import datetime
-
-
+from .utils import chunk
 from .config import config_from_path
 
 
@@ -34,11 +33,6 @@ class PathAction(Action):
         option_string: str | None = None,
     ) -> None:
         setattr(namespace, self.dest, ExpandedPathType(values))
-
-
-def _chunk(iterable, n):
-    for i in range(0, len(iterable), n):
-        yield iterable[i : i + n]
 
 
 class AIBoxCLI:
@@ -116,7 +110,7 @@ class AIBoxCLI:
             if len(unk) % 2 != 0:
                 rich.print("[bold red]Only key-value pair arguments are supported for OmegaConf")
                 raise CLIException("Only key-value pair arguments are supported for OmegaConf")
-            args_dict: dict = {k: v for k, v in _chunk(unk, 2)}
+            args_dict: dict = {k: v for k, v in chunk(unk, 2)}
         else:
             args_dict: dict = vars(args)
         dotlist = [f"{k.lstrip('-')}={v}" for k, v in args_dict.items()]

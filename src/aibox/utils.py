@@ -8,6 +8,22 @@ from rich import print as rprint
 from .config import class_from_string, config_from_path
 
 
+class OptDict(dict):
+    """Convenience class that behaves like a dict but allows access with the attribute syntax."""
+
+    def __getattr__(self, name: str):
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(name)
+
+    def __setattr__(self, name: str, value):
+        self[name] = value
+
+    def __delattr__(self, name: str):
+        del self[name]
+
+
 def as_path(path: str | Path) -> Path:
     return Path(path).expanduser().resolve()
 
@@ -82,6 +98,21 @@ try:
 
 except ImportError:
     pass
+
+
+def chunk(iterable, n):
+    """
+    Yield successive n-sized chunks from iterable.
+
+    Args:
+        iterable: the iterable to chunk
+        n: the size of each chunk
+
+    Returns:
+        a generator that yields chunks of size n from iterable
+    """
+    for i in range(0, len(iterable), n):
+        yield iterable[i : i + n]
 
 
 @dataclass

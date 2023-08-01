@@ -1,17 +1,53 @@
 try:
     import torch
     from torchvision.transforms import ToTensor
+    from torchvision.utils import make_grid
 except ImportError:
     print("pytorch required for these utilities")
     exit(1)
 
-from typing import Tuple
+from typing import Tuple, TypeGuard
 
 import matplotlib.pyplot as plt
 import numpy as np
+from PIL import Image as PILImage
 from skimage.util import compare_images
 
 from .transforms import ToNumpyImage
+
+
+def is_image_list(images: list) -> TypeGuard[list[PILImage.Image]]:
+    return all(isinstance(image, PILImage.Image) for image in images)
+
+
+def is_tensor_list(images: list) -> TypeGuard[list[torch.Tensor]]:
+    return all(isinstance(image, PILImage.Image) for image in images)
+
+
+def display_images(
+    images: list[PILImage.Image] | list[torch.Tensor] | torch.Tensor,
+    n_columns=1,
+    figsize=(12, 12),
+):
+    if isinstance(images, (list, tuple)):
+        if is_image_list(images):
+            tensors = [ToTensor()(s) for s in images]
+        elif is_tensor_list(images):
+            tensors = images
+        else:
+            raise ValueError("images must be a list of PIL Images or Tensors")
+        tensors = torch.cat(tensors, dim=0)
+    else:
+        tensors = images
+    image = make_grid(tensors, nrow=n_columns, paddding=1)
+    plt.rcParams["figure.figsize"] = figsize
+    plt.imshow(image)
+    plt.axis("off")
+    plt.show()
+
+
+def tensor_to_rgb(x):
+    return torch.clamp((x + 1.0) / 2.0, min=0.0, max=1.0)
 
 
 def show_tensor_image(image: torch.Tensor):
