@@ -1,6 +1,6 @@
 try:
     import torch
-    from torchvision.transforms import ToTensor
+    from torchvision.transforms import ToTensor, ToPILImage
     from torchvision.utils import make_grid
 except ImportError:
     print("pytorch required for these utilities")
@@ -39,7 +39,7 @@ def display_images(
         tensors = torch.cat(tensors, dim=0)
     else:
         tensors = images
-    image = make_grid(tensors, nrow=n_columns, paddding=1)
+    image = ToPILImage()(make_grid(tensors, nrow=n_columns, padding=1))
     plt.rcParams["figure.figsize"] = figsize
     plt.imshow(image)
     plt.axis("off")
