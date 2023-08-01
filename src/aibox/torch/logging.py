@@ -307,21 +307,21 @@ try:
                 return True
             return False
 
-        def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+        def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
             if self.disabled:
                 return
 
             if pl_module.global_step > 0 or self.log_first_step:
                 self.log_img(pl_module, batch, trainer.global_step, split="train")
 
-        def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+        def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
             if self.disabled:
                 return
 
             if pl_module.global_step > 0:
                 self.log_img(pl_module, batch, batch_idx, split="val")
 
-        def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+        def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
             if self.disabled:
                 return
 
