@@ -1,10 +1,12 @@
 from functools import partial
 
+from aibox.config import Config
+
 try:
     import multiprocessing as mp
     from argparse import ArgumentParser
 
-    import lightning.pytorch as pl
+    import lightning.pytorch as L
     from lightning.pytorch.cli import LightningArgumentParser
     from rich import print
     from torch.utils.data import DataLoader, Dataset, IterableDataset
@@ -137,7 +139,7 @@ class TransformFromConfig:
         return self.transforms(x)
 
 
-class DataModuleFromConfig(pl.LightningDataModule):
+class DataModuleFromConfig(L.LightningDataModule):
     @property
     def train_dataset(self):
         return self.datasets["train"]
@@ -158,20 +160,13 @@ class DataModuleFromConfig(pl.LightningDataModule):
         self,
         batch_size,
         sample_shape,
-        train: dict,
-        validation=None,
-        test=None,
-        predict=None,
-        split_kwargs=None,
+        train: Config,
+        validation: Config | None = None,
+        test: Config | None = None,
+        predict: Config | None = None,
+        split_kwargs: Config | None = None,
         num_workers=None,
         # Transforms
-        transform=None,
-        target_transform=None,
-        # Transforms for specific splits
-        train_transform=None,
-        val_transform=None,
-        test_transform=None,
-        predict_transform=None,
         shuffle_test_loader=False,
         # use_worker_init_fn=False,
         shuffle_val_dataloader=False,
@@ -189,48 +184,20 @@ class DataModuleFromConfig(pl.LightningDataModule):
         else:
             self.num_workers = num_workers if num_workers is not None else mp.cpu_count()
 
-        self.transform = transform
-        self.target_transform = target_transform
-        self.train_transform = train_transform
-        self.val_transform = val_transform
-        self.test_transform = test_transform
-        self.predict_transform = predict_transform
-
         if train is not None:
-            self._handle_transform(transform, train_transform, train)
             self.dataset_configs["train"] = train
             self.train_dataloader = self._train_dataloader
         if validation is not None:
-            self._handle_transform(transform, val_transform, validation)
             self.dataset_configs["validation"] = validation
             self.val_dataloader = partial(self._val_dataloader, shuffle=shuffle_val_dataloader)
         if test is not None:
-            self._handle_transform(transform, test_transform, test)
             self.dataset_configs["test"] = test
             self.test_dataloader = partial(self._test_dataloader, shuffle=shuffle_test_loader)
         if predict is not None:
-            self._handle_transform(transform, predict_transform, predict)
             self.dataset_configs["predict"] = predict
             self.predict_dataloader = self._predict_dataloader
 
         self.wrap = wrap
-
-    def _handle_transform(self, transform, split_transform, config):
-        _transform = None
-        if split_transform is not None:
-            _transform = self._config_to_transform(split_transform)
-        elif transform is not None:
-            _transform = self._config_to_transform(transform)
-        if _transform is not None:
-            config["args"].update(transform=_transform)
-
-    def _config_to_transform(self, config):
-        if config is None:
-            return None
-        elif isinstance(config, TransformFromConfig):
-            return config
-        else:
-            return TransformFromConfig(config)
 
     def prepare_data(self):
         for data_cfg in self.dataset_configs.values():
@@ -242,66 +209,40 @@ class DataModuleFromConfig(pl.LightningDataModule):
             for k in self.datasets:
                 self.datasets[k] = WrappedDataset(self.datasets[k])
 
-    def _train_dataloader(self):
+    def _get_dataloader(self, split, shuffle=False):
         # is_iterable_dataset = isinstance(self.datasets["train"], Txt2ImgIterableBaseDataset)
         # if is_iterable_dataset or self.use_worker_init_fn:
         # init_fn = worker_init_fn
         # else:
         init_fn = None
-        is_iterable_dataset = isinstance(self.datasets["train"], IterableDataset)
+        is_iterable_dataset = isinstance(self.datasets[split], IterableDataset)
+        match split:
+            case "test":
+                shuffle = shuffle and (not is_iterable_dataset)
+            case _:
+                pass
         return DataLoader(
-            self.datasets["train"],
+            self.datasets[split],
             batch_size=self.batch_size,
             num_workers=self.num_workers,
-            shuffle=False if is_iterable_dataset else True,
+            shuffle=False if is_iterable_dataset else shuffle,
             worker_init_fn=init_fn,
         )
+
+    def _train_dataloader(self):
+        return self._get_dataloader("train", True)
 
     def _val_dataloader(self, shuffle=False):
-        # if isinstance(self.datasets["validation"], Txt2ImgIterableBaseDataset) or self.use_worker_init_fn:
-        #     init_fn = worker_init_fn
-        # else:
-        init_fn = None
-        return DataLoader(
-            self.datasets["validation"],
-            batch_size=self.batch_size,
-            num_workers=self.num_workers,
-            worker_init_fn=init_fn,
-            shuffle=shuffle,
-        )
+        return self._get_dataloader("validation", shuffle)
 
     def _test_dataloader(self, shuffle=False):
-        # is_iterable_dataset = isinstance(self.datasets["train"], Txt2ImgIterableBaseDataset)
-        # if is_iterable_dataset or self.use_worker_init_fn:
-        #     init_fn = worker_init_fn
-        # else:
-        init_fn = None
-        is_iterable_dataset = isinstance(self.datasets["test"], IterableDataset)
-
-        # do not shuffle dataloader for iterable dataset
-        shuffle = shuffle and (not is_iterable_dataset)
-        return DataLoader(
-            self.datasets["test"],
-            batch_size=self.batch_size,
-            num_workers=self.num_workers,
-            worker_init_fn=init_fn,
-            shuffle=shuffle,
-        )
+        return self._get_dataloader("test", shuffle)
 
     def _predict_dataloader(self, shuffle=False):
-        # if isinstance(self.datasets["predict"], Txt2ImgIterableBaseDataset) or self.use_worker_init_fn:
-        #     init_fn = worker_init_fn
-        # else:
-        init_fn = None
-        return DataLoader(
-            self.datasets["predict"],
-            batch_size=self.batch_size,
-            num_workers=self.num_workers,
-            worker_init_fn=init_fn,
-        )
+        return self._get_dataloader("predict", shuffle)
 
 
-class LightningModuleFromConfig(pl.LightningModule):
+class LightningModuleFromConfig(L.LightningModule):
     def __init__(self, *, model, optimizers, schedulers, loss, **kwargs):
         """
         Assumes loss, optimizers, and schedulers are all configuration dictionaries
