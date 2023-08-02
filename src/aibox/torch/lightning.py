@@ -164,7 +164,7 @@ class DataModuleFromConfig(L.LightningDataModule):
         validation: Config | None = None,
         test: Config | None = None,
         predict: Config | None = None,
-        split_kwargs: Config | None = None,
+        shared_split_kwargs: Config | None = None,
         num_workers=None,
         # Transforms
         shuffle_test_loader=False,
@@ -176,7 +176,7 @@ class DataModuleFromConfig(L.LightningDataModule):
         self.batch_size = batch_size
         self.sample_shape = sample_shape
         self.dataset_configs = dict()
-        self.split_kwargs = split_kwargs if split_kwargs is not None else dict()
+        self.split_kwargs = shared_split_kwargs if shared_split_kwargs is not None else dict()
         # self.use_worker_init_fn = use_worker_init_fn
 
         if num_workers is not None and num_workers == "batch_size":
@@ -200,6 +200,7 @@ class DataModuleFromConfig(L.LightningDataModule):
         self.wrap = wrap
 
     def prepare_data(self):
+        # trigger any downloads or preprocessing
         for data_cfg in self.dataset_configs.values():
             init_from_cfg(data_cfg, **self.split_kwargs)
 

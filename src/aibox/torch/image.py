@@ -1,6 +1,6 @@
 try:
     import torch
-    from torchvision.transforms import ToTensor, ToPILImage
+    from torchvision.transforms import ToPILImage, ToTensor
     from torchvision.utils import make_grid
 except ImportError:
     print("pytorch required for these utilities")
@@ -13,11 +13,13 @@ import numpy as np
 from PIL import Image as PILImage
 from skimage.util import compare_images
 
+from ..utils import is_list_of
 from .transforms import ToNumpyImage
 
 
-def is_image_list(images: list) -> TypeGuard[list[PILImage.Image]]:
-    return all(isinstance(image, PILImage.Image) for image in images)
+def is_image_list(images: list):
+    # return all(isinstance(image, PILImage.Image) for image in images)
+    return is_list_of(images, PILImage.Image)
 
 
 def is_tensor_list(images: list) -> TypeGuard[list[torch.Tensor]]:
@@ -28,6 +30,7 @@ def display_images(
     images: list[PILImage.Image] | list[torch.Tensor] | torch.Tensor,
     n_columns=1,
     figsize=(12, 12),
+    normalize=False,
 ):
     if isinstance(images, (list, tuple)):
         if is_image_list(images):
@@ -39,11 +42,33 @@ def display_images(
         tensors = torch.cat(tensors, dim=0)
     else:
         tensors = images
-    image = ToPILImage()(make_grid(tensors, nrow=n_columns, padding=1))
+    image = ToPILImage()(make_grid(tensors, nrow=n_columns, padding=1, normalize=normalize))
     plt.rcParams["figure.figsize"] = figsize
     plt.imshow(image)
     plt.axis("off")
     plt.show()
+
+
+def n_channels_to_pil_mode(n_channels: int | str) -> str:
+    """map number of image channels to PIL Image mode
+
+    supports 'mask', 'gray', 1, 3, 4
+
+    PIL Modes = ["1", "CMYK", "F", "HSV", "I", "L", "LAB", "P", "RGB", "RGBA", "RGBX", "YCbCr"]
+
+    Returns:
+        "RGB" if not one of above
+    """
+    match n_channels:
+        case "mask":
+            return "1"
+        case 1, "gray":
+            return "L"
+        case 3:
+            return "RGB"
+        case 4:
+            return "RGBA"
+    return "RGB"
 
 
 def tensor_to_rgb(x):

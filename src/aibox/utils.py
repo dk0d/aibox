@@ -1,11 +1,15 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from pprint import pformat
+from typing import TypeGuard, TypeVar
 
 import yaml
 from rich import print as rprint
 
 from .config import class_from_string, config_from_path
+
+T = TypeVar("T")
 
 
 class OptDict(dict):
@@ -22,6 +26,10 @@ class OptDict(dict):
 
     def __delattr__(self, name: str):
         del self[name]
+
+
+def is_list_of(obj: Sequence, T) -> TypeGuard[Sequence]:
+    return all(isinstance(el, T) for el in obj)
 
 
 def as_path(path: str | Path) -> Path:
