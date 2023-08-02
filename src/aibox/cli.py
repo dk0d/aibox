@@ -42,9 +42,21 @@ class AIBoxCLI:
         self.linked = []
 
     def setup_default_args(self):
-        self.parser.add_argument("-e", "--exp_name", type=str)
-        self.parser.add_argument("-m", "--model_name", type=str)
-        self.parser.add_argument("-c", "--config", type=str)
+        self.parser.add_argument(
+            "-e",
+            "--exp_name",
+            type=str,
+        )
+        self.parser.add_argument(
+            "-m",
+            "--model_name",
+            type=str,
+        )
+        self.parser.add_argument(
+            "-c",
+            "--config",
+            type=str,
+        )
         self.parser.add_argument(
             "-cd",
             "--config_dir",
@@ -71,7 +83,11 @@ class AIBoxCLI:
             # default=cwd("configs/models"),
             default=None,
         )
-        self.parser.add_argument("--debug", action="store_true", default=False)
+        self.parser.add_argument(
+            "--debug",
+            action="store_true",
+            default=False,
+        )
 
     def add_argument(self, *args, **kwargs):
         self.parser.add_argument(*args, **kwargs)
