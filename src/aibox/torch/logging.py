@@ -1,10 +1,10 @@
 from argparse import Namespace
-from pathlib import Path
 from typing import Any
 
 from omegaconf import DictConfig, OmegaConf
 
 from aibox.config import config_to_dotlist
+from aibox.utils import as_path
 
 try:
     import shutil
@@ -13,11 +13,11 @@ try:
     import torch
     import torchvision
     from lightning.fabric.loggers.logger import rank_zero_experiment
-    from lightning_utilities.core.rank_zero import rank_zero_only
     from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
     from lightning.pytorch.loggers import MLFlowLogger, TensorBoardLogger
     from lightning.pytorch.loggers.mlflow import LOCAL_FILE_URI_PREFIX
     from lightning.pytorch.loggers.utilities import _scan_checkpoints
+    from lightning_utilities.core.rank_zero import rank_zero_only
     from mlflow.client import MlflowClient
     from torch.utils.tensorboard.writer import SummaryWriter
 
@@ -77,7 +77,7 @@ try:
             enable_tb_logging=False,
             **kwargs,
         ):
-            self.root_log_dir = Path(root_log_dir or "logs")
+            self.root_log_dir = as_path(root_log_dir or "logs")
             self.enable_tb_logging = enable_tb_logging
             self._tensorboard_logdir = (self.root_log_dir / "tbruns").expanduser().resolve()
             if "tracking_uri" not in kwargs:
@@ -121,17 +121,20 @@ try:
         def log_image(
             self,
             tag: str,
-            images: np.ndarray | torch.Tensor,
+            image: np.ndarray | torch.Tensor,
             global_step=None,
             dataformats="CHW",
         ):
             if self.enable_tb_logging and self._tb_logger is not None:
-                self.tb_writer.add_image(tag, images, global_step, dataformats)
+                self.tb_writer.add_image(tag, image, global_step, dataformats)
+
+            if isinstance(image, torch.Tensor):
+                image = torchvision.transforms.ToPILImage()(image.detach().cpu())
 
             # run_id: str, image: Union["numpy.ndarray", "PIL.Image.Image"], artifact_file: str
             self.mlflow_client.log_image(
                 self.run_id,
-                images,
+                image,
                 artifact_file=f"{tag}.png",
             )
 
@@ -145,8 +148,12 @@ try:
             super().finalize(status)
             if self.enable_tb_logging and self._tb_logger is not None:
                 self._tb_logger.finalize(status)
-                if Path(self._tb_logger.log_dir).exists():
-                    self.experiment.log_artifacts(self.run_id, self._tb_logger.log_dir, "tensorboard_events")
+                if as_path(self._tb_logger.log_dir).exists():
+                    self.experiment.log_artifacts(
+                        self.run_id,
+                        as_path(self._tb_logger.log_dir).as_posix(),
+                        "tensorboard_events",
+                    )
 
         def _scan_and_log_checkpoints(self, checkpoint_callback: ModelCheckpoint) -> None:
             # get checkpoints to be saved with associated score
@@ -155,9 +162,10 @@ try:
                 checkpoints = _scan_checkpoints(checkpoint_callback, {})
                 if self.save_dir is not None:
                     for _, p, _, _ in checkpoints:
-                        if Path(p).is_relative_to(self.save_dir) and p in self._logged_model_time:
-                            Path(p).unlink()
-                    parent = list(set(Path(p).parent for _, p, _, _ in checkpoints))[0]
+                        p = as_path(p)
+                        if p.is_relative_to(self.save_dir) and p in self._logged_model_time:
+                            p.unlink()
+                    parent = list(set(as_path(p).parent for _, p, _, _ in checkpoints))[0]
                     if parent.is_dir() and not list(parent.iterdir()):
                         shutil.rmtree(parent)
             except Exception:

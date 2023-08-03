@@ -9,7 +9,7 @@ try:
     import lightning.pytorch as L
     from lightning.pytorch.cli import LightningArgumentParser
     from rich import print
-    from torch.utils.data import DataLoader, Dataset, IterableDataset
+    from torch.utils.data import DataLoader, Dataset, IterableDataset, random_split
 
     from ..config import init_from_cfg, is_dict, is_list
 
@@ -159,8 +159,8 @@ class DataModuleFromConfig(L.LightningDataModule):
     def __init__(
         self,
         batch_size,
-        sample_shape,
-        train: Config,
+        dataset: Config | None = None,
+        train: Config | None = None,
         validation: Config | None = None,
         test: Config | None = None,
         predict: Config | None = None,
@@ -170,12 +170,29 @@ class DataModuleFromConfig(L.LightningDataModule):
         shuffle_test_loader=False,
         # use_worker_init_fn=False,
         shuffle_val_dataloader=False,
+        splits: None | tuple[float, float, float] = None,
         wrap=False,
     ):
+        """Create a lightning data module from a configuration.
+
+        Args:
+            batch_size (_type_): _description_
+            dataset (Config | None, optional): _description_. Defaults to None.
+            train (Config | None, optional): _description_. Defaults to None.
+            validation (Config | None, optional): _description_. Defaults to None.
+            test (Config | None, optional): _description_. Defaults to None.
+            predict (Config | None, optional): _description_. Defaults to None.
+            shared_split_kwargs (Config | None, optional): _description_. Defaults to None.
+            num_workers (_type_, optional): _description_. Defaults to None.
+            shuffle_test_loader (bool, optional): _description_. Defaults to False.
+            shuffle_val_dataloader (bool, optional): _description_. Defaults to False.
+            splits (None | tuple[float, float, float], optional): used if dataset is specified and 
+                creates a random split of the datasets. Defaults to None.
+        """
         super().__init__()
         self.batch_size = batch_size
-        self.sample_shape = sample_shape
         self.dataset_configs = dict()
+        self.splits = splits
         self.split_kwargs = shared_split_kwargs if shared_split_kwargs is not None else dict()
         # self.use_worker_init_fn = use_worker_init_fn
 
@@ -184,18 +201,25 @@ class DataModuleFromConfig(L.LightningDataModule):
         else:
             self.num_workers = num_workers if num_workers is not None else mp.cpu_count()
 
-        if train is not None:
-            self.dataset_configs["train"] = train
+        if dataset is not None:
+            self.dataset_configs["dataset"] = dataset
             self.train_dataloader = self._train_dataloader
-        if validation is not None:
-            self.dataset_configs["validation"] = validation
             self.val_dataloader = partial(self._val_dataloader, shuffle=shuffle_val_dataloader)
-        if test is not None:
-            self.dataset_configs["test"] = test
             self.test_dataloader = partial(self._test_dataloader, shuffle=shuffle_test_loader)
-        if predict is not None:
-            self.dataset_configs["predict"] = predict
             self.predict_dataloader = self._predict_dataloader
+        else:
+            if train is not None:
+                self.dataset_configs["train"] = train
+                self.train_dataloader = self._train_dataloader
+            if validation is not None:
+                self.dataset_configs["validation"] = validation
+                self.val_dataloader = partial(self._val_dataloader, shuffle=shuffle_val_dataloader)
+            if test is not None:
+                self.dataset_configs["test"] = test
+                self.test_dataloader = partial(self._test_dataloader, shuffle=shuffle_test_loader)
+            if predict is not None:
+                self.dataset_configs["predict"] = predict
+                self.predict_dataloader = self._predict_dataloader
 
         self.wrap = wrap
 
@@ -205,7 +229,15 @@ class DataModuleFromConfig(L.LightningDataModule):
             init_from_cfg(data_cfg, **self.split_kwargs)
 
     def setup(self, stage=None):
-        self.datasets = {k: init_from_cfg(self.dataset_configs[k], **self.split_kwargs) for k in self.dataset_configs}
+        if "dataset" in self.dataset_configs:
+            dataset = init_from_cfg(self.dataset_configs["dataset"], **self.split_kwargs)
+            splits = (0.8, 0.1, 0.1) if self.splits is None else self.splits
+            train, val, test = random_split(dataset, splits)
+            self.datasets = dict(train=train, validation=val, test=test)
+        else:
+            self.datasets = {
+                k: init_from_cfg(self.dataset_configs[k], **self.split_kwargs) for k in self.dataset_configs
+            }
         if self.wrap:
             for k in self.datasets:
                 self.datasets[k] = WrappedDataset(self.datasets[k])
