@@ -79,24 +79,35 @@ def init_from_cfg(config: Config, *args, **kwargs):
         conf = dict(**config)
 
     class_string = None
-    if "__classpath__" in conf:
-        class_string = conf.pop("__classpath__")
-        conf["args"] = dict(**conf)
-    elif "__class_path__" in conf:
-        class_string = conf.pop("__class_path__")
-        conf["args"] = dict(**conf)
-    elif "class_path" in conf:
-        class_string = conf["class_path"]
-    elif "target" in conf:
-        class_string = conf["target"]
-    else:
-        raise KeyError("Expected one of `class_path` or `target` as module path to instantiate object")
+    style = "new"
+    supported_keys = ["__classpath__", "__class_path__", "__class__"]
+    while class_string is None and len(supported_keys) > 0:
+        skey = supported_keys.pop()
+        class_string = conf.pop(skey, None)
+
+    if class_string is None:  # legacy style
+        style = "legacy"
+        if "class_path" in conf:
+            class_string = conf["class_path"]
+        elif "target" in conf:
+            class_string = conf["target"]
+        else:
+            raise KeyError("Expected one of `class_path` or `target` as module path to instantiate object")
 
     Class = class_from_string(class_string)
-    params = conf.get("args", dict())
-    for key in ["kwds", "kwargs", "init_args", "params"]:
-        params.update(**conf.get(key, dict()))
-    params.update(**kwargs)
+
+    if style == "new":
+        if "__args__" in conf:
+            params = conf.pop("__args__", dict())
+        else:
+            params = dict(**conf)
+        params.update(**kwargs)
+    else:
+        params = conf.pop("args", dict())
+        for key in ["args", "kwds", "kwargs", "init_args", "params"]:
+            params.update(**conf.pop(key, dict()))
+
+        params.update(**kwargs)
     return Class(*args, **params)
 
 
