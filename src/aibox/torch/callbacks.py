@@ -99,7 +99,7 @@ class LogImagesCallback(L.Callback):
         disabled=False,
     ):
         super().__init__()
-        self.batch_freq = batch_frequency
+        self.batch_frequency = batch_frequency
         self.max_images = max_images
         self.nrow = nrow
         self.log_on_batch_idx = log_on_batch_idx
@@ -217,7 +217,7 @@ class LogImagesCallback(L.Callback):
     ):
         can_log = self.check_frequency(
             pl_module.global_step, self.epoch_frequency, self.epoch_log_steps
-        ) and self.check_frequency(batch_idx, self.batch_freq, self.batch_log_steps)
+        ) and self.check_frequency(batch_idx, self.batch_frequency, self.batch_log_steps)
 
         if (
             can_log
@@ -267,14 +267,14 @@ class LogImagesCallback(L.Callback):
 
     def _setup_log_steps(self, trainer=None):
         self.batch_log_steps = [
-            self.frequency_base**n for n in range(int(np.log(self.batch_freq) / np.log(self.frequency_base)) + 1)
+            self.frequency_base**n for n in range(int(np.log(self.batch_frequency) / np.log(self.frequency_base)) + 1)
         ]
         self.epoch_log_steps = [
             self.frequency_base**n for n in range(int(np.log(self.epoch_frequency) / np.log(self.frequency_base)) + 1)
         ]
 
         if not self.increase_log_steps:
-            self.batch_log_steps = [self.batch_freq]
+            self.batch_log_steps = [self.batch_frequency]
             self.epoch_frequency = [self.epoch_frequency]
 
         if self.log_first_step:
