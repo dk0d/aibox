@@ -4,7 +4,17 @@ from typing import TypeAlias
 
 from omegaconf import DictConfig, OmegaConf
 
-Config: TypeAlias = DictConfig  | dict
+Config: TypeAlias = DictConfig | dict
+
+
+# class Config(DictConfig):
+
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+
+#     def update(self, *args, **kwargs):
+#         OmegaConf.update(self, *args, **kwargs)
+#         return self
 
 
 def is_list(x) -> bool:
@@ -34,11 +44,14 @@ def class_from_string(string: str, reload=False):
         module, cls = "__main__", string
     return getattr(importlib.import_module(module, package=None), cls)
 
+
 def config_from_dict(d: dict) -> DictConfig:
     return OmegaConf.create(d)
 
+
 def config_from_dotlist(dotlist: list[str]):
     return OmegaConf.from_dotlist(dotlist)
+
 
 def config_to_dict(config: Config) -> dict:
     if isinstance(config, dict):
@@ -66,7 +79,13 @@ def init_from_cfg(config: Config, *args, **kwargs):
         conf = dict(**config)
 
     class_string = None
-    if "class_path" in conf:
+    if "__classpath__" in conf:
+        class_string = conf.pop("__classpath__")
+        conf["args"] = dict(**conf)
+    elif "__class_path__" in conf:
+        class_string = conf.pop("__class_path__")
+        conf["args"] = dict(**conf)
+    elif "class_path" in conf:
         class_string = conf["class_path"]
     elif "target" in conf:
         class_string = conf["target"]
