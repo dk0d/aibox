@@ -63,6 +63,11 @@ def config_to_dict(config: Config) -> dict:
     return container
 
 
+def config_update(config, key, value, **kwargs):
+    OmegaConf.update(config, key, value, **kwargs)
+    return config
+
+
 def init_from_cfg(config: Config, *args, **kwargs):
     """Builds an object from the given configuration
 
