@@ -6,6 +6,8 @@ from omegaconf import DictConfig, OmegaConf
 
 Config: TypeAlias = DictConfig | dict
 
+SUPPORTED_INIT_TARGET_KEYS = ["__classpath__", "__class_path__", "__target__", "__init_target__"]
+SUPPORTED_INIT_ARGS_KEYS = ["__args__", "__kwargs__", "__init_args__", "__init_kwargs__"]
 
 # class Config(DictConfig):
 
@@ -78,14 +80,24 @@ def init_from_cfg(config: Config, *args, **kwargs):
     else:
         conf = dict(**config)
 
-    class_string = None
     style = "new"
-    supported_keys = ["__classpath__", "__class_path__", "__class__"]
-    while class_string is None and len(supported_keys) > 0:
-        skey = supported_keys.pop()
-        class_string = conf.pop(skey, None)
+    resolved = []
+    for skey in SUPPORTED_INIT_TARGET_KEYS:
+        if skey not in conf:
+            continue
+        value = conf.pop(skey, None)
+        if value is not None and len(resolved) == 0:
+            resolved.append((skey, value))
+        elif value is not None:
+            raise ValueError(
+                f"Multiple init targets specified in config: {skey} and {resolved[-1][0]}" f"are both present in {conf}"
+            )
 
-    if class_string is None:  # legacy style
+    class_string = resolved[-1][1] if len(resolved) > 0 else None
+
+    if class_string is None:
+        # legacy strucuture e.g.
+        # {"class_path": "aibox.torch.callbacks.LogImagesCallback", "args: {"log_dir": "./logs"}"}
         style = "legacy"
         if "class_path" in conf:
             class_string = conf["class_path"]
@@ -97,10 +109,15 @@ def init_from_cfg(config: Config, *args, **kwargs):
     Class = class_from_string(class_string)
 
     if style == "new":
-        if "__args__" in conf:
-            params = conf.pop("__args__", dict())
-        else:
+        params = {}
+        args_specified = False
+        for skey in SUPPORTED_INIT_ARGS_KEYS:
+            args_specified = skey in conf if not args_specified else args_specified
+            params.update(**conf.pop(skey, dict()))
+
+        if not args_specified:
             params = dict(**conf)
+
         params.update(**kwargs)
     else:
         params = conf.pop("args", dict())
