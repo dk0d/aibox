@@ -12,7 +12,7 @@ from .config import class_from_string, config_from_path
 T = TypeVar("T")
 
 
-class OptDict(dict):
+class ConfigDict(dict):
     """Convenience class that behaves like a dict but allows access with the attribute syntax."""
 
     def __getattr__(self, name: str):
@@ -26,6 +26,17 @@ class OptDict(dict):
 
     def __delattr__(self, name: str):
         del self[name]
+
+    def to_dict(self) -> dict:
+        """Convert to plain dict."""
+        out = dict(**self)
+
+        for k, v in out.items():
+            # TODO: why doesn't this work?
+            # if isinstance(v, ConfigDict):
+            if v.__class__.__name__.split(".")[-1] == "ConfigDict":
+                out[k] = v.to_dict()
+        return out
 
 
 def is_list_of(obj: Sequence, T) -> TypeGuard[Sequence]:
