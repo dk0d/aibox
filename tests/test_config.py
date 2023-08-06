@@ -1,6 +1,16 @@
-from aibox.config import init_from_cfg, SUPPORTED_INIT_ARGS_KEYS, SUPPORTED_INIT_TARGET_KEYS
 import copy
+
+import aibox
 import pytest
+from aibox.config import (
+    SUPPORTED_INIT_ARGS_KEYS,
+    SUPPORTED_INIT_TARGET_KEYS,
+    config_from_dict,
+    init_from_cfg,
+    ConfigDict,
+)
+from aibox.torch.callbacks import LogImagesCallback
+from omegaconf import DictConfig
 
 
 def test_init_styles():
@@ -64,4 +74,18 @@ def test_init_styles():
             raise RuntimeError(f"Failed to initialize {name}: {e}  {config}")
 
 
-test_init_styles()
+def test_config_dict():
+    config = ConfigDict()
+    config.__classpath__ = "aibox.torch.callbacks.LogImagesCallback"
+    config.batch_frequency = 2
+    callback = init_from_cfg(config)
+    assert isinstance(callback, LogImagesCallback), f"Expected LogImagesCallback, got {type(callback)}"
+    assert callback.batch_frequency == 2, f"Expected batch_frequency=2, got {callback.batch_frequency}"
+
+
+def test_config_conversion():
+    config_dict = ConfigDict()
+    config_dict.__classpath__ = "aibox.torch.callbacks.LogImagesCallback"
+    config_dict.batch_frequency = 2
+    config = config_from_dict(config_dict)
+    assert isinstance(config, DictConfig), f"Expected DictConfig, got {type(config)}"
