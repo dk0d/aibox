@@ -48,6 +48,8 @@ def class_from_string(string: str, reload=False):
 
 
 def config_from_dict(d: dict) -> DictConfig:
+    if isinstance(d, ConfigDict):
+        d = d.to_dict()
     return OmegaConf.create(d)
 
 
@@ -251,3 +253,44 @@ def yaml_to_toml(source_dir: Path, out_dir: Path, name_fn=None):
     yamlConfigs = [(p, yaml.load(p.open("r"), yaml.Loader)) for p in source_dir.rglob("**/*.yaml")]
     pprint(f"Found {len(yamlConfigs)} YAML Files")
     _configs_to_toml(yamlConfigs, source_dir, out_dir, name_fn)
+
+
+class ConfigDict(dict):
+    """Convenience class that behaves like a dict but allows access with the attribute syntax."""
+
+    def __getattr__(self, name: str):
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(name)
+
+    @staticmethod
+    def __dict_to_configdict__(d: dict):
+        d = ConfigDict(d)
+        for k, v in d.items():
+            if isinstance(v, dict):
+                d[k] = ConfigDict.__dict_to_configdict__(v)
+        return d
+
+    def __setattr__(self, name: str, value):
+        if isinstance(value, dict):
+            value = ConfigDict.__dict_to_configdict__(value)
+        self[name] = value
+
+    def __delattr__(self, name: str):
+        del self[name]
+
+    def to_dict(self) -> dict:
+        """Convert to plain dict."""
+        out = dict(**self)
+
+        for k, v in out.items():
+            # TODO: why doesn't this work?
+            # if isinstance(v, ConfigDict):
+            if v.__class__.__name__.split(".")[-1] == "ConfigDict":
+                out[k] = v.to_dict()
+        return out
+
+    def to_config(self):
+        """Convert to OmegaConf config."""
+        return config_from_dict(self.to_dict())
