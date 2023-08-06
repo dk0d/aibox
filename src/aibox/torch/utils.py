@@ -1,9 +1,15 @@
 try:
     import torch
-    from torchvision import transforms
+    import torch.multiprocessing as mp
 except ImportError:
     print("pytorch required for these utilities")
     exit(1)
+
+
+def get_num_workers(zero_if_mps=True):
+    if zero_if_mps:
+        return 0 if torch.has_mps else mp.cpu_count()
+    return (mp.cpu_count() / 2) if torch.has_mps else mp.cpu_count()
 
 
 def get_device():
