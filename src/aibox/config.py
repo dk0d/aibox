@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import TypeAlias
 
 from omegaconf import DictConfig, OmegaConf
+
 from .utils import as_path
 
 OmegaConf.register_new_resolver("as_path", as_path)

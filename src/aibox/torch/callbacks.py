@@ -103,7 +103,7 @@ class LogImagesCallback(L.Callback):
         self.max_images = max_images
         self.nrow = nrow
         self.log_on_batch_idx = log_on_batch_idx
-        self.log_first_step = log_first_step
+        self.log_first_epoch = log_first_step
         self.rescale = rescale
         self.disabled = disabled
         self.clamp = clamp
@@ -143,8 +143,12 @@ class LogImagesCallback(L.Callback):
         for k in images:
             grid = torchvision.utils.make_grid(images[k], nrow=self.nrow)
             grid = self._normalize(grid)
-            label = f"{split}/{k}" if batch_idx is None else f"{split}/{k}_{batch_idx}"
-            writer.add_image(label, grid.detach().cpu(), pl_module.global_step)
+            label = (
+                f"{split}/epoch{pl_module.current_epoch}/{k}"
+                if batch_idx is None
+                else f"{split}/epoch{pl_module.current_epoch}/{k}_{batch_idx}"
+            )
+            writer.add_image(label, grid.detach().cpu())
 
     @rank_zero_only
     def _mlflow(
@@ -165,20 +169,20 @@ class LogImagesCallback(L.Callback):
             batch_idx (int, optional): . Defaults to None.
         """
         logger = pl_module.logger
-        global_step = pl_module.global_step
+        epoch_idx = pl_module.current_epoch
         if not isinstance(logger, (CombinedLogger, MLFlowLogger)):
             return
         for k, img in enumerate(images):  # allows for multiple images per batch
             grid = torchvision.utils.make_grid(img, nrow=self.nrow)
             grid = self._normalize(grid)
             label = (
-                f"{split}/epoch{global_step}/{k}"
+                f"{split}/epoch{epoch_idx}/{k}"
                 if batch_idx is None
-                else f"{split}/epoch{global_step}/batch{batch_idx}_{k}"
+                else f"{split}/epoch{epoch_idx}/batch{batch_idx}_{k}"
             )
             if isinstance(logger, CombinedLogger):
                 # pass to logger instead in case combined logger is using both tensorboard and MLFlow
-                logger.log_image(tag=label, image=grid.detach().cpu(), global_step=global_step)
+                logger.log_image(tag=label, image=grid.detach().cpu())
             else:
                 client: MlflowClient = logger.experiment
                 client.log_image(
@@ -216,7 +220,7 @@ class LogImagesCallback(L.Callback):
         split="train",
     ):
         can_log = self.check_frequency(
-            pl_module.global_step, self.epoch_frequency, self.epoch_log_steps
+            pl_module.current_epoch, self.epoch_frequency, self.epoch_log_steps
         ) and self.check_frequency(batch_idx, self.batch_frequency, self.batch_log_steps)
 
         if (
@@ -252,7 +256,7 @@ class LogImagesCallback(L.Callback):
     @rank_zero_only
     def log_histogram(self, pl_module, histogram, batch_idx, split, factor_name):
         pl_module.logger.experiment.add_histogram(
-            f"{split}/{factor_name}", histogram.detach().cpu(), pl_module.global_step
+            f"{split}/{factor_name}", histogram.detach().cpu(), pl_module.current_epoch
         )
 
     def check_frequency(self, idx, freq, steps):
@@ -277,12 +281,13 @@ class LogImagesCallback(L.Callback):
             self.batch_log_steps = [self.batch_frequency]
             self.epoch_frequency = [self.epoch_frequency]
 
-        if self.log_first_step:
+        if self.log_first_epoch:
             self.epoch_log_steps.insert(0, 0)
             self.batch_log_steps.insert(0, 0)
 
         if self.log_last_batch and trainer is not None:
-            self.batch_log_steps.append(trainer.num_training_batches - 1)
+            # second to last in the case of an incomplete last batch # (image grid and batch assumptions)
+            self.batch_log_steps.append(trainer.num_training_batches - 2)
 
     def on_train_start(
         self,
@@ -303,7 +308,11 @@ class LogImagesCallback(L.Callback):
         if self.disabled:
             return
 
-        if pl_module.global_step > 0 or self.log_first_step or self.log_last_batch:
+        if (
+            pl_module.current_epoch > 0
+            or (pl_module.current_epoch == 0 and self.log_first_epoch)
+            or self.log_last_batch
+        ):
             self.log_image(pl_module, batch, batch_idx, split="train")
 
     def on_validation_batch_end(
@@ -318,7 +327,7 @@ class LogImagesCallback(L.Callback):
         if self.disabled:
             return
 
-        if pl_module.global_step > 0:
+        if pl_module.current_epoch > 0:
             self.log_image(pl_module, batch, batch_idx, split="val")
 
     def on_test_batch_end(
@@ -333,5 +342,5 @@ class LogImagesCallback(L.Callback):
         if self.disabled:
             return
 
-        if pl_module.global_step > 0 or self.log_first_step:
+        if pl_module.current_epoch > 0 or self.log_first_epoch:
             self.log_image(pl_module, batch, batch_idx, split="test")
