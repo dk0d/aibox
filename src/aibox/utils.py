@@ -24,9 +24,16 @@ def print(*args, **kwargs):
     args = [a if isinstance(a, str) else pformat(a) for a in args]
     rprint(*args, **kwargs)
 
+def as_uri(path: str | Path) -> str:
+    import re
+    if re.search(r"^[\w]+://", str(path)) is not None:
+        # already a URI
+        return str(path)
+    return as_path(path).as_uri()
 
 try:
     import mlflow
+
 
     def search_runs(
         client: mlflow.MlflowClient,
@@ -87,6 +94,15 @@ try:
         except Exception as e:
             print(f"Error loading config for run ID: {run.info.run_id}")
             print(e)
+
+
+    def load_run(run, tracking_uri, config_file="config.yml", alias="best"):
+        if isinstance(run, str):
+            client = mlflow.MlflowClient(tracking_uri=tracking_uri)
+            run = client.get_run(run_id=run)
+        config = load_config_from_run(run, tracking_uri, config_file)
+        model = load_model_from_run(run, tracking_uri, config, alias)
+        return config, model
 
 except ImportError:
     pass
