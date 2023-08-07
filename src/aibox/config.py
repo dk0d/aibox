@@ -54,7 +54,9 @@ def class_from_string(string: str, reload=False):
 def config_from_dict(d: dict) -> DictConfig:
     if isinstance(d, ConfigDict):
         d = d.to_dict()
-    return OmegaConf.create(d)
+
+    c = OmegaConf.create(d)
+    return c
 
 
 def config_from_dotlist(dotlist: list[str]):

@@ -9,6 +9,7 @@ from aibox.config import (
     init_from_cfg,
     ConfigDict,
 )
+from aibox.utils import as_path
 from omegaconf import DictConfig
 
 
@@ -100,3 +101,11 @@ def test_config_conversion():
     config_dict.a = 2
     config = config_from_dict(config_dict)
     assert isinstance(config, DictConfig), f"Expected DictConfig, got {type(config)}"
+
+
+def test_as_path_resolver():
+    user_dir = as_path("~")
+    config = ConfigDict()
+    config.root_dir = "${as_path:'~'}"
+    config = config_from_dict(config)
+    assert str(config.root_dir) == str(user_dir), f"Expected {user_dir}, got {config.root_dir}"
