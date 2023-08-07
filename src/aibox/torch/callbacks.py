@@ -129,6 +129,12 @@ class LogImagesCallback(L.Callback):
             images = torch.clamp(images, 0.0, 1.0)
         return images
 
+    @staticmethod
+    def _img_path(k, split, global_step, epoch_idx, batch_idx=None):
+        if batch_idx is None:
+            return f"{split}/epoch{epoch_idx}/gs{global_step}_{k}"
+        return f"{split}/epoch{epoch_idx}/gs{global_step}_b{batch_idx}_{k}"
+
     @rank_zero_only
     def _tensorboard(
         self,
@@ -143,10 +149,12 @@ class LogImagesCallback(L.Callback):
         for k in images:
             grid = torchvision.utils.make_grid(images[k], nrow=self.nrow)
             grid = self._normalize(grid)
-            label = (
-                f"{split}/epoch{pl_module.current_epoch}/{k}"
-                if batch_idx is None
-                else f"{split}/epoch{pl_module.current_epoch}/{k}_{batch_idx}"
+            label = self._img_path(
+                k,
+                split,
+                pl_module.global_step,
+                pl_module.current_epoch,
+                batch_idx,
             )
             writer.add_image(label, grid.detach().cpu())
 
@@ -169,20 +177,25 @@ class LogImagesCallback(L.Callback):
             batch_idx (int, optional): . Defaults to None.
         """
         logger = pl_module.logger
-        epoch_idx = pl_module.current_epoch
         if not isinstance(logger, (CombinedLogger, MLFlowLogger)):
             return
         for k, img in enumerate(images):  # allows for multiple images per batch
             grid = torchvision.utils.make_grid(img, nrow=self.nrow)
             grid = self._normalize(grid)
-            label = (
-                f"{split}/epoch{epoch_idx}/{k}"
-                if batch_idx is None
-                else f"{split}/epoch{epoch_idx}/batch{batch_idx}_{k}"
+            label = self._img_path(
+                k,
+                split,
+                pl_module.global_step,
+                pl_module.current_epoch,
+                batch_idx,
             )
             if isinstance(logger, CombinedLogger):
                 # pass to logger instead in case combined logger is using both tensorboard and MLFlow
-                logger.log_image(tag=label, image=grid.detach().cpu())
+                logger.log_image(
+                    tag=label,
+                    image=grid.detach().cpu(),
+                    global_step=pl_module.global_step,
+                )
             else:
                 client: MlflowClient = logger.experiment
                 client.log_image(
@@ -256,7 +269,7 @@ class LogImagesCallback(L.Callback):
     @rank_zero_only
     def log_histogram(self, pl_module, histogram, batch_idx, split, factor_name):
         pl_module.logger.experiment.add_histogram(
-            f"{split}/{factor_name}", histogram.detach().cpu(), pl_module.current_epoch
+            f"{split}/{factor_name}", histogram.detach().cpu(), pl_module.global_step
         )
 
     def check_frequency(self, idx, freq, steps):
@@ -308,11 +321,7 @@ class LogImagesCallback(L.Callback):
         if self.disabled:
             return
 
-        if (
-            pl_module.current_epoch > 0
-            or (pl_module.current_epoch == 0 and self.log_first_epoch)
-            or self.log_last_batch
-        ):
+        if pl_module.global_step > 0 or (pl_module.global_step == 0 and self.log_first_epoch) or self.log_last_batch:
             self.log_image(pl_module, batch, batch_idx, split="train")
 
     def on_validation_batch_end(
@@ -327,7 +336,7 @@ class LogImagesCallback(L.Callback):
         if self.disabled:
             return
 
-        if pl_module.current_epoch > 0:
+        if pl_module.global_step > 0:
             self.log_image(pl_module, batch, batch_idx, split="val")
 
     def on_test_batch_end(
@@ -342,5 +351,5 @@ class LogImagesCallback(L.Callback):
         if self.disabled:
             return
 
-        if pl_module.current_epoch > 0 or self.log_first_epoch:
+        if pl_module.global_step > 0 or (pl_module.global_step == 0 and self.log_first_epoch):
             self.log_image(pl_module, batch, batch_idx, split="test")
