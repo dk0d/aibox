@@ -72,16 +72,16 @@ try:
 
         def __init__(
             self,
-            root_log_dir=None,
+            local_log_root=None,
             tb_log_graph=True,
             enable_tb_logging=False,
             **kwargs,
         ):
-            self.root_log_dir = as_path(root_log_dir or "logs")
+            self.local_log_root = as_path(local_log_root or "logs")
             self.enable_tb_logging = enable_tb_logging
-            self._tensorboard_logdir = (self.root_log_dir / "tbruns").expanduser().resolve()
+            self._tensorboard_logdir = (self.local_log_root / "tbruns").expanduser().resolve()
             if "tracking_uri" not in kwargs:
-                mlflow_logdir = f"file:{self.root_log_dir / 'mlruns'}"
+                mlflow_logdir = f"file:{self.local_log_root / 'mlruns'}"
                 kwargs.update(tracking_uri=mlflow_logdir)
 
             super().__init__(**kwargs)
