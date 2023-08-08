@@ -81,7 +81,7 @@ class LogImagesCallback(L.Callback):
     Supports TensorBoardLogger and CombinedLogger, and MLFlowLogger.
 
     Add this callback to the trainer callbacks
-    and implement the `log_images(batch, split: str, **kwargs)` method in your LightningModule.
+    and implement the `get_log_images(batch, split: str, **kwargs)` method in your LightningModule.
 
     """
 
@@ -98,7 +98,7 @@ class LogImagesCallback(L.Callback):
         log_on_batch_idx=False,
         log_first_step=False,
         interlace_images=True,
-        log_images_kwargs=None,
+        get_log_images_kwargs=None,
         log_last=True,
         disabled=False,
     ):
@@ -116,7 +116,7 @@ class LogImagesCallback(L.Callback):
             increase_log_steps (bool, optional): Increase the log frequency exponentially. Defaults to True.
             log_on_batch_idx (bool, optional): Log images on batch_idx instead of global_step. Defaults to False.
             log_first_step (bool, optional): Log images on the first step. Defaults to False.
-            log_images_kwargs (dict, optional): Additional kwargs to pass to `log_images`. Defaults to None.
+            log_images_kwargs (dict, optional): Additional kwargs to pass to `get_log_images`. Defaults to None.
             log_last (bool, optional): Log images on the last step. Defaults to True.
             disabled (bool, optional): Disable the callback. Defaults to False.
         """
@@ -130,7 +130,7 @@ class LogImagesCallback(L.Callback):
         self.disabled = disabled
         self.clamp = clamp
         self.log_last_batch = log_last
-        self.log_images_kwargs = log_images_kwargs if log_images_kwargs is not None else {}
+        self.get_log_images_kwargs = get_log_images_kwargs if get_log_images_kwargs is not None else {}
         self.interlace_images = interlace_images
         self.frequency_base = frequency_base
         self.epoch_frequency = epoch_frequency
@@ -286,8 +286,8 @@ class LogImagesCallback(L.Callback):
 
         if (
             can_log
-            and hasattr(pl_module, "log_images")  # batch_idx % self.batch_freq == 0
-            and callable(pl_module.log_images)
+            and hasattr(pl_module, "get_log_images")  # batch_idx % self.batch_freq == 0
+            and callable(pl_module.get_log_images)
             and self.max_images > 0
         ):
             logger = type(pl_module.logger)
@@ -297,7 +297,7 @@ class LogImagesCallback(L.Callback):
                 pl_module.eval()
 
             with torch.no_grad():
-                images: list[torch.Tensor] = pl_module.log_images(batch, split=split, **self.log_images_kwargs)
+                images: list[torch.Tensor] = pl_module.get_log_images(batch, split=split, **self.get_log_images_kwargs)
 
             for k in range(len(images)):  # allows for multiple images per batch
                 N = min(images[k].shape[0], self.max_images)
