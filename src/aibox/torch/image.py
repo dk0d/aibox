@@ -23,7 +23,7 @@ def is_image_list(images: list):
 
 
 def is_tensor_list(images: list) -> TypeGuard[list[torch.Tensor]]:
-    return all(isinstance(image, PILImage.Image) for image in images)
+    return all(isinstance(image, torch.Tensor) for image in images)
 
 
 def display_images(
