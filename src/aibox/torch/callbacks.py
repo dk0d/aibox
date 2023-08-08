@@ -80,6 +80,9 @@ class LogImagesCallback(L.Callback):
 
     Supports TensorBoardLogger and CombinedLogger, and MLFlowLogger.
 
+    Add this callback to the trainer callbacks
+    and implement the `log_images(batch, split: str, **kwargs)` method in your LightningModule.
+
     """
 
     def __init__(
@@ -94,10 +97,29 @@ class LogImagesCallback(L.Callback):
         increase_log_steps=True,
         log_on_batch_idx=False,
         log_first_step=False,
+        interlace_images=True,
         log_images_kwargs=None,
         log_last=True,
         disabled=False,
     ):
+        """
+        Create a new LogImagesCallback.
+
+        Args:
+            batch_frequency (int, optional): Log images every `batch_frequency` batches. Defaults to 100000.
+            epoch_frequency (int, optional): Log images every `epoch_frequency` epochs. Defaults to 10.
+            frequency_base (int, optional): Base of the exponential increase of the log frequency. Defaults to 2.
+            nrow (int, optional): Number of images per row. Defaults to 8.
+            max_images (int, optional): Maximum number of images to log. Defaults to 8.
+            clamp (bool, optional): Clamp images to [0, 1]. Defaults to True.
+            rescale (bool, optional): Rescale images to [0, 1]. Defaults to False.
+            increase_log_steps (bool, optional): Increase the log frequency exponentially. Defaults to True.
+            log_on_batch_idx (bool, optional): Log images on batch_idx instead of global_step. Defaults to False.
+            log_first_step (bool, optional): Log images on the first step. Defaults to False.
+            log_images_kwargs (dict, optional): Additional kwargs to pass to `log_images`. Defaults to None.
+            log_last (bool, optional): Log images on the last step. Defaults to True.
+            disabled (bool, optional): Disable the callback. Defaults to False.
+        """
         super().__init__()
         self.batch_frequency = batch_frequency
         self.max_images = max_images
@@ -109,6 +131,7 @@ class LogImagesCallback(L.Callback):
         self.clamp = clamp
         self.log_last_batch = log_last
         self.log_images_kwargs = log_images_kwargs if log_images_kwargs is not None else {}
+        self.interlace_images = interlace_images
         self.frequency_base = frequency_base
         self.epoch_frequency = epoch_frequency
         self.increase_log_steps = increase_log_steps
@@ -130,41 +153,63 @@ class LogImagesCallback(L.Callback):
         return images
 
     @staticmethod
-    def _img_path(k, split, global_step, epoch_idx, batch_idx=None):
+    def _img_path(split, global_step, epoch_idx, batch_idx=None, k=None):
         if batch_idx is None:
-            return f"{split}/epoch{epoch_idx}/gs{global_step}_{k}"
-        return f"{split}/epoch{epoch_idx}/gs{global_step}_b{batch_idx}_{k}"
+            out = f"{split}/epoch{epoch_idx}/gs{global_step}"
+        else:
+            out = f"{split}/epoch{epoch_idx}/gs{global_step}_b{batch_idx}"
+
+        if k is not None:
+            out += f"_{k}"
+        return out
+
+    @staticmethod
+    def _interlace_images(images: list[torch.Tensor], maxImages: int = 8) -> torch.Tensor:
+        """
+        assumes image tensors are of shape (batch, channels, height, width)
+
+        takes list of images and interlaces them into a single tensor of images of size
+        (batch * len(images), channels, height, width)
+
+        """
+        if len(images) == 1:
+            return images[0]
+
+        numImages = min(images[0].shape[0], maxImages)
+        logIms = [torch.stack(row, dim=0) for row in zip(*[im[:numImages] for im in images])]
+        return torch.cat(logIms, dim=0)
 
     @rank_zero_only
     def _tensorboard(
         self,
         pl_module,
-        images,
+        image,
         split,
         batch_idx=None,
+        k=None,
     ):
         writer: SummaryWriter = pl_module.logger.experiment
         if not isinstance(writer, SummaryWriter):
             return
-        for k in images:
-            grid = torchvision.utils.make_grid(images[k], nrow=self.nrow)
-            grid = self._normalize(grid)
-            label = self._img_path(
-                k,
-                split,
-                pl_module.global_step,
-                pl_module.current_epoch,
-                batch_idx,
-            )
-            writer.add_image(label, grid.detach().cpu())
+        grid = torchvision.utils.make_grid(image, nrow=self.nrow)
+        grid = self._normalize(grid)
+        label = self._img_path(
+            split,
+            pl_module.global_step,
+            pl_module.current_epoch,
+            batch_idx,
+            k,
+        )
+        writer.add_image(label, grid.detach().cpu())
 
     @rank_zero_only
     def _mlflow(
         self,
         pl_module: L.LightningModule,
-        images: list[torch.Tensor],
+        image: list[torch.Tensor],
         split: str,
         batch_idx: int | None = None,
+        k: int | None = None,
     ):
         """Log images to MLFlow.
 
@@ -173,34 +218,37 @@ class LogImagesCallback(L.Callback):
         Args:
             pl_module (L.LightningModule): ...
             images (list[torch.Tensor]): each tensor is a batch of images of shape (N, C, H, W)
+            k (int): image index if not interlaced, defaults to None
             split (str): _description_
             batch_idx (int, optional): . Defaults to None.
         """
         logger = pl_module.logger
         if not isinstance(logger, (CombinedLogger, MLFlowLogger)):
             return
-        for k, img in enumerate(images):  # allows for multiple images per batch
-            grid = torchvision.utils.make_grid(img, nrow=self.nrow)
-            grid = self._normalize(grid)
-            label = self._img_path(
-                k,
-                split,
-                pl_module.global_step,
-                pl_module.current_epoch,
-                batch_idx,
+        # for k, image in enumerate(images):  # allows for multiple images per batch
+        grid = torchvision.utils.make_grid(image, nrow=self.nrow)
+        grid = self._normalize(grid)
+        label = self._img_path(
+            split,
+            pl_module.global_step,
+            pl_module.current_epoch,
+            batch_idx,
+            k,
+        )
+        if isinstance(logger, CombinedLogger):
+            # pass to logger instead in case combined logger is using both tensorboard and MLFlow
+            logger.log_image(
+                tag=label,
+                image=grid.detach().cpu(),
+                global_step=pl_module.global_step,
             )
-            if isinstance(logger, CombinedLogger):
-                # pass to logger instead in case combined logger is using both tensorboard and MLFlow
-                logger.log_image(
-                    tag=label,
-                    image=grid.detach().cpu(),
-                    global_step=pl_module.global_step,
-                )
-            else:
-                client: MlflowClient = logger.experiment
+        else:
+            client: MlflowClient = logger.experiment
+            run_id = logger.run_id
+            if run_id is not None:
                 client.log_image(
-                    logger.run_id,
-                    images.detach().cpu(),
+                    run_id,
+                    image,
                     artifact_file=f"{label}.png",
                 )
 
@@ -257,11 +305,18 @@ class LogImagesCallback(L.Callback):
                 if isinstance(images[k], torch.Tensor):
                     images[k] = images[k].detach().cpu()
 
+            _logger_log_images = self._logger_log_images.get(logger, self._NOOP_log)
+
+            if self.interlace_images:
+                all_images = self._interlace_images(images, self.max_images)
+                _logger_log_images(pl_module, all_images, split, batch_idx)
+            else:
+                for k, image in enumerate(images):
+                    _logger_log_images(pl_module, image, split, batch_idx, k=k)
+
             # self.log_local(
             #     pl_module.logger.save_dir, split, images, pl_module.global_step, pl_module.current_epoch, batch_idx
             # )
-            _logger_log_images = self._logger_log_images.get(logger, self._NOOP_log)
-            _logger_log_images(pl_module, images, split, batch_idx)
 
             if is_train:
                 pl_module.train()
