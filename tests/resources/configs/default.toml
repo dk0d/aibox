@@ -1,12 +1,11 @@
 [model]
-class_path = "path.to.Class"
-
-[model.args]
+__classpath__ = "path.to.Class"
 image_size = 128
 
 [trainer]
 accelerator = "ddp"
 
+# Use Legacy format
 [data]
 class_path = "path.to.DataModule"
 

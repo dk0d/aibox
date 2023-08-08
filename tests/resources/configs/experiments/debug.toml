@@ -1,7 +1,9 @@
 ### DEBUGGING
-debug = true 
+debug = true
+name = 'debug-experiment'
 
-[model.args]
+[model]
+__classpath__ = 'path.to.Class'
 condition_classes = 1
 
 [data.args]
@@ -17,5 +19,10 @@ precision = 32
 
 # Slurm overrides for debugging
 [slurm]
+cuda = '11.4'
 cpus_per_task = 2
 mem_per_cpu = '4gb'
+env_name = 'debug'
+env_dir = '${as_path:"~/.conda/envs"}'
+python_file = 'debug.py'
+script_dir = '${oc.env:PWD}/slurm_scripts'
