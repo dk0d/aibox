@@ -176,7 +176,7 @@ class LogImagesCallback(L.Callback):
             return images[0]
 
         numImages = min(images[0].shape[0], maxImages)
-        logIms = [torch.stack(row, dim=0) for row in zip(*[im[:numImages] for im in images])]
+        logIms = [torch.stack(row, dim=0) for row in zip(*[im[:numImages].detach().cpu() for im in images])]
         return torch.cat(logIms, dim=0)
 
     @rank_zero_only
@@ -299,20 +299,18 @@ class LogImagesCallback(L.Callback):
             with torch.no_grad():
                 images: list[torch.Tensor] = pl_module.get_log_images(batch, split=split, **self.get_log_images_kwargs)
 
-            for k in range(len(images)):  # allows for multiple images per batch
-                N = min(images[k].shape[0], self.max_images)
-                images[k] = images[k][:N]
-                if isinstance(images[k], torch.Tensor):
-                    images[k] = images[k].detach().cpu()
-
             _logger_log_images = self._logger_log_images.get(logger, self._NOOP_log)
 
-            if self.interlace_images:
+            if self.interlace_images:  # log all images together to single image grid
                 all_images = self._interlace_images(images, self.max_images)
                 _logger_log_images(pl_module, all_images, split, batch_idx)
-            else:
-                for k, image in enumerate(images):
-                    _logger_log_images(pl_module, image, split, batch_idx, k=k)
+            else:  # log each batch of images separately
+                for k, img in enumerate(images):
+                    N = min(img.shape[0], self.max_images)
+                    img = img[:N]
+                    if isinstance(img, torch.Tensor):
+                        img = img.detach().cpu()
+                    _logger_log_images(pl_module, img, split, batch_idx, k=k)
 
             # self.log_local(
             #     pl_module.logger.save_dir, split, images, pl_module.global_step, pl_module.current_epoch, batch_idx
