@@ -3,6 +3,7 @@ from pathlib import Path
 from pprint import pformat
 from typing import TypeGuard, TypeVar
 
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from rich import print as rprint
 
 
@@ -18,7 +19,12 @@ def as_path(path: str | Path) -> Path:
 
 
 def print(*args, **kwargs):
-    args = [a if isinstance(a, str) else pformat(a) for a in args]
+    def _config_format(arg):
+        if isinstance(arg, (DictConfig, ListConfig)):
+            arg = OmegaConf.to_container(arg, resolve=True)
+        return pformat(arg)
+
+    args = [a if isinstance(a, str) else _config_format(a) for a in args]
     rprint(*args, **kwargs)
 
 
