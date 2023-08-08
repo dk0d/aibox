@@ -140,6 +140,9 @@ class TransformFromConfig:
 
 
 class DataModuleFromConfig(L.LightningDataModule):
+    def __repr__(self) -> str:
+        return f"{super().__repr__()} ({[d for d in self.dataset_configs]})"
+
     @property
     def train_dataset(self):
         return self.datasets["train"]
@@ -186,7 +189,7 @@ class DataModuleFromConfig(L.LightningDataModule):
             num_workers (_type_, optional): _description_. Defaults to None.
             shuffle_test_loader (bool, optional): _description_. Defaults to False.
             shuffle_val_dataloader (bool, optional): _description_. Defaults to False.
-            splits (None | tuple[float, float, float], optional): used if dataset is specified and 
+            splits (None | tuple[float, float, float], optional): used if dataset is specified and
                 creates a random split of the datasets. Defaults to None.
         """
         super().__init__()
