@@ -50,6 +50,7 @@ source = 'regex_commit'
 path = "src/aibox/__version__.py"
 tag = true
 tag_sign = false
+commit_message = "chore: release v{new_version}"
 
 [build-system]
 requires = ["hatchling", "hatch-regex-commit"]
