@@ -211,13 +211,19 @@ def train(config) -> tuple[L.LightningModule, L.LightningDataModule, L.Trainer]:
     Returns:
         A tuple of model, datamodule, and trainer.
     """
-    print("*" * 50)
-    model = init_model(config)
-
-    print("model", model)
 
     trainer = init_trainer(config)
 
+    # Seed
+    # Make sure to do this after logging is initialized
+    # (Otherwise MLFlow will generate the same run name for different runs)
+    # and before initializing model
+    if "seed" in config:
+        seed_everything(config.seed, True)
+
+    print("*" * 50)
+    model = init_model(config)
+    print("model", model)
     print("*" * 50)
 
     dm = init_from_cfg(config.data)
@@ -281,10 +287,6 @@ def main(args=None):
     handle_slurm_param(config)
 
     print(config_to_dotlist(config))
-
-    # Seed
-    if "seed" in config:
-        seed_everything(config.seed, True)
 
     results = train_and_test(config)
 
