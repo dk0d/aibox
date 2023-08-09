@@ -27,10 +27,6 @@ license = { text = "MIT" }
 [project.scripts]
 aibox = 'aibox.__main__:main'
 
-[tool.hatch.version]
-source = 'regex_commit'
-path = "src/aibox/__version__.py"
-tag_sign = false
 
 [tool.black]
 line-length = 120
@@ -49,14 +45,10 @@ docs = [
 ]
 torch = ["torch", "torchvision", "torchaudio", "lightning>=2.0.0"]
 
-[tool.pdm.scripts]
-test = "pytest tests"
-
-[tool.pdm.build]
-includes = []
-
-[tool.pdm.dev-dependencies]
-test = ["pytest>=7.2.1"]
+[tool.hatch.version]
+source = 'regex_commit'
+path = "src/aibox/__version__.py"
+tag_sign = false
 
 [build-system]
 requires = ["hatchling", "hatch-regex-commit"]
