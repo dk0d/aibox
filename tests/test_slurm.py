@@ -13,10 +13,10 @@ def test_slurm_cli():
         "train",
         "-e",
         "debug",
-        "--model.name",
-        "TESTMODEL",
         "-cd",
         DEFAULT_CONFIG_DIR,
+        "--model.name=TESTMODEL",
+        "--slurm.env_name=testenv",
         "--debug",
     ]
     # parser = argparse.ArgumentParser()

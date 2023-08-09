@@ -76,12 +76,12 @@ def main(args=None):
 
     config = AIBoxCLI().parse_args(args=config_args)
 
+    if not sbatch_available() and not args.debug:
+        print("sbatch not available, running in debug mode")
+        args.debug = True
+
     if args.debug:
         config.debug = True
-
-    if not sbatch_available() and not args.debug:
-        print("sbatch not available, exiting")
-        return
 
     # try:
     submit_slurm_script(

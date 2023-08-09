@@ -282,7 +282,9 @@ def submit_slurm_script(
         _scriptArgs.extend(py_file_args)
 
     envPath = as_path(conda_envs_dir) / env_name
+    # _scriptArgs = [a for a in _scriptArgs if re.match(r"^--slurm.*", a) is None]
     _scriptArgs = " ".join(_scriptArgs)
+
     s.run(
         f"""
 echo "Date      : $(date)"
