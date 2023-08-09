@@ -149,6 +149,11 @@ def init_trainer(config):
         accelerator = "mps"
         strategy = "auto"
 
+    if "profiler" in config.trainer:
+        profiler = init_from_cfg(config.trainer.profiler)
+    else:
+        profiler = None
+
     trainerParams.update(
         strategy=strategy,
         accelerator=accelerator,
@@ -157,14 +162,7 @@ def init_trainer(config):
         fast_dev_run=config.debug,
         callbacks=callbacks,
         precision=32,
-        # profiler=PyTorchProfiler(
-        #     profile_memory=True,
-        # activities=[
-        #     "memory",
-        #     "cpu",
-        #     "mps",
-        # ],
-        # ),
+        profiler=profiler,
     )
 
     if not torch.has_cuda and not torch.has_mps:
