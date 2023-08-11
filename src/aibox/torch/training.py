@@ -143,7 +143,9 @@ def init_trainer(config):
         pass
 
     accelerator = "gpu"
-    strategy = DDPStrategy(find_unused_parameters=False)
+    strategy = "auto"
+    if torch.has_cuda and torch.cuda.device_count() > 1:
+        strategy = DDPStrategy(find_unused_parameters=False)
 
     if torch.has_mps:
         accelerator = "mps"

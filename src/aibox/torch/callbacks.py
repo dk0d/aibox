@@ -87,15 +87,14 @@ class LogImagesCallback(L.Callback):
 
     def __init__(
         self,
-        batch_frequency=100000,
-        epoch_frequency=10,
-        frequency_base=2,
+        step_frequency=100000,
+        frequency_increase_base=2,
         nrow=8,
         max_images=8,
         clamp=True,
         rescale=False,
         increase_log_steps=True,
-        log_on_batch_idx=False,
+        log_on_batch_idx=False,  # Log in batch_idx instead of global step
         log_first_step=False,
         interlace_images=True,
         get_log_images_kwargs=None,
@@ -106,9 +105,9 @@ class LogImagesCallback(L.Callback):
         Create a new LogImagesCallback.
 
         Args:
-            batch_frequency (int, optional): Log images every `batch_frequency` batches. Defaults to 100000.
-            epoch_frequency (int, optional): Log images every `epoch_frequency` epochs. Defaults to 10.
-            frequency_base (int, optional): Base of the exponential increase of the log frequency. Defaults to 2.
+            step_frequency (int, optional): Log images every `step_frequency` steps. Defaults to 100000.
+            frequency_increase_base (int, optional): Base of the exponential increase of the log frequency.
+                Defaults to 2.
             nrow (int, optional): Number of images per row. Defaults to 8.
             max_images (int, optional): Maximum number of images to log. Defaults to 8.
             clamp (bool, optional): Clamp images to [0, 1]. Defaults to True.
@@ -121,19 +120,18 @@ class LogImagesCallback(L.Callback):
             disabled (bool, optional): Disable the callback. Defaults to False.
         """
         super().__init__()
-        self.batch_frequency = batch_frequency
+        self.step_frequency = step_frequency
         self.max_images = max_images
         self.nrow = nrow
         self.log_on_batch_idx = log_on_batch_idx
-        self.log_first_epoch = log_first_step
+        self.log_first_step = log_first_step
         self.rescale = rescale
         self.disabled = disabled
         self.clamp = clamp
         self.log_last_batch = log_last
         self.get_log_images_kwargs = get_log_images_kwargs if get_log_images_kwargs is not None else {}
         self.interlace_images = interlace_images
-        self.frequency_base = frequency_base
-        self.epoch_frequency = epoch_frequency
+        self.frequency_increase_base = frequency_increase_base
         self.increase_log_steps = increase_log_steps
         self._setup_log_steps()
         self._logger_log_images = {
@@ -280,10 +278,7 @@ class LogImagesCallback(L.Callback):
         batch_idx,
         split="train",
     ):
-        can_log = self.check_frequency(
-            pl_module.current_epoch, self.epoch_frequency, self.epoch_log_steps
-        ) and self.check_frequency(batch_idx, self.batch_frequency, self.batch_log_steps)
-
+        can_log = self.check_frequency(pl_module.global_step, self.step_frequency, self.log_steps)
         if (
             can_log
             and hasattr(pl_module, "get_log_images")  # batch_idx % self.batch_freq == 0
@@ -336,24 +331,17 @@ class LogImagesCallback(L.Callback):
         return False
 
     def _setup_log_steps(self, trainer=None):
-        self.batch_log_steps = [
-            self.frequency_base**n for n in range(int(np.log(self.batch_frequency) / np.log(self.frequency_base)) + 1)
+        self.log_steps = [
+            self.frequency_increase_base**n
+            for n in range(int(np.log(self.step_frequency) / np.log(self.frequency_increase_base)) + 1)
         ]
-        self.epoch_log_steps = [
-            self.frequency_base**n for n in range(int(np.log(self.epoch_frequency) / np.log(self.frequency_base)) + 1)
-        ]
-
         if not self.increase_log_steps:
-            self.batch_log_steps = [self.batch_frequency]
-            self.epoch_frequency = [self.epoch_frequency]
-
-        if self.log_first_epoch:
-            self.epoch_log_steps.insert(0, 0)
-            self.batch_log_steps.insert(0, 0)
-
+            self.log_steps = [self.step_frequency]
+        if self.log_first_step:
+            self.log_steps.insert(0, 0)
         if self.log_last_batch and trainer is not None:
             # second to last in the case of an incomplete last batch # (image grid and batch assumptions)
-            self.batch_log_steps.append(trainer.num_training_batches - 2)
+            self.log_steps.append(trainer.num_training_batches - 2)
 
     def on_train_start(
         self,
@@ -374,7 +362,7 @@ class LogImagesCallback(L.Callback):
         if self.disabled:
             return
 
-        if pl_module.global_step > 0 or (pl_module.global_step == 0 and self.log_first_epoch) or self.log_last_batch:
+        if pl_module.global_step > 0 or (pl_module.global_step == 0 and self.log_first_step) or self.log_last_batch:
             self.log_image(pl_module, batch, batch_idx, split="train")
 
     def on_validation_batch_end(
@@ -404,5 +392,5 @@ class LogImagesCallback(L.Callback):
         if self.disabled:
             return
 
-        if pl_module.global_step > 0 or (pl_module.global_step == 0 and self.log_first_epoch):
+        if pl_module.global_step > 0 or (pl_module.global_step == 0 and self.log_first_step):
             self.log_image(pl_module, batch, batch_idx, split="test")
