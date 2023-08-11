@@ -99,7 +99,11 @@ def handle_slurm_param(config):
         for k, v in slurmMeta.items():
             print(f"{k:22} \t: {str(v):>10}")
 
-        config.data.args.num_workers = int(slurmMeta["SLURM_TASKS_PER_NODE"])
+        try:
+            config.data.num_workers = int(slurmMeta["SLURM_TASKS_PER_NODE"])
+        except Exception as e:
+            print("Failed to set num_workers from SLURM_TASKS_PER_NODE")
+            print(e)
         # torch.set_float32_matmul_precision("medium")
     else:
         slurmMeta = {}
