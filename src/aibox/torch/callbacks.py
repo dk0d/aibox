@@ -98,7 +98,6 @@ class LogImagesCallback(L.Callback):
         log_first_step=False,
         interlace_images=True,
         get_log_images_kwargs=None,
-        log_last=True,
         disabled=False,
     ):
         """
@@ -128,7 +127,6 @@ class LogImagesCallback(L.Callback):
         self.rescale = rescale
         self.disabled = disabled
         self.clamp = clamp
-        self.log_last_batch = log_last
         self.get_log_images_kwargs = get_log_images_kwargs if get_log_images_kwargs is not None else {}
         self.interlace_images = interlace_images
         self.frequency_increase_base = frequency_increase_base
@@ -339,9 +337,6 @@ class LogImagesCallback(L.Callback):
             self.log_steps = [self.step_frequency]
         if self.log_first_step:
             self.log_steps.insert(0, 0)
-        if self.log_last_batch and trainer is not None:
-            # second to last in the case of an incomplete last batch # (image grid and batch assumptions)
-            self.log_steps.append(trainer.num_training_batches - 2)
 
     def on_train_start(
         self,
@@ -362,7 +357,7 @@ class LogImagesCallback(L.Callback):
         if self.disabled:
             return
 
-        if pl_module.global_step > 0 or (pl_module.global_step == 0 and self.log_first_step) or self.log_last_batch:
+        if pl_module.global_step > 0 or (pl_module.global_step == 0 and self.log_first_step):
             self.log_image(pl_module, batch, batch_idx, split="train")
 
     def on_validation_batch_end(
