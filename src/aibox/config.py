@@ -39,6 +39,65 @@ def print_config(config):
     rich.print_json(json.dumps(OmegaConf.to_container(config)))
 
 
+def derive_classpath_deprecated(config: Config) -> str:
+    """Derives the classpath from the given config"""
+    conf = config_to_dict(config)
+    if "class_path" in conf:
+        class_string = conf["class_path"]
+    elif "target" in conf:
+        class_string = conf["target"]
+    else:
+        raise KeyError("Expected one of `class_path` or `target` as module path to instantiate object")
+    return class_string
+
+
+def derive_classpath(config: Config) -> str:
+    """Derives the classpath from the given config"""
+    resolved = []
+    conf = config_to_dict(config)
+    for skey in SUPPORTED_INIT_TARGET_KEYS:
+        if skey not in conf:
+            continue
+        value = conf.pop(skey, None)
+        if value is not None and len(resolved) == 0:
+            resolved.append((skey, value))
+        elif value is not None:
+            raise ValueError(
+                f"Multiple init targets specified in config: {skey} and {resolved[-1][0]}" f"are both present in {conf}"
+            )
+    class_string = resolved[-1][1] if len(resolved) > 0 else None
+
+    if class_string is None:
+        raise KeyError(f"None of the supported init target keys found in config keys: {list(config.keys())}")
+
+    return class_string
+
+
+def derive_args_deprecated(config: Config, **kwargs):
+    conf = config_to_dict(config)
+    params = conf.pop("args", dict())
+    for key in ["args", "kwds", "kwargs", "init_args", "params"]:
+        params.update(**conf.pop(key, dict()))
+
+    params.update(**kwargs)
+    return params
+
+
+def derive_args(config: Config, **kwargs):
+    params = {}
+    conf = config_to_dict(config)
+    args_specified = False
+    for skey in SUPPORTED_INIT_ARGS_KEYS:
+        args_specified = skey in conf if not args_specified else args_specified
+        params.update(**conf.pop(skey, dict()))
+
+    if not args_specified:
+        params = dict(**conf)
+
+    params.update(**kwargs)
+    return params
+
+
 # Config reading (ported from ldm module)
 def class_from_string(string: str, reload=False):
     if "." in string:
@@ -87,57 +146,14 @@ def init_from_cfg(config: Config, *args, **kwargs):
     Returns:
         _type_: Object
     """
-
-    if isinstance(config, DictConfig):
-        conf = config_to_dict(config)
-    else:
-        conf = dict(**config)
-
-    style = "new"
-    resolved = []
-    for skey in SUPPORTED_INIT_TARGET_KEYS:
-        if skey not in conf:
-            continue
-        value = conf.pop(skey, None)
-        if value is not None and len(resolved) == 0:
-            resolved.append((skey, value))
-        elif value is not None:
-            raise ValueError(
-                f"Multiple init targets specified in config: {skey} and {resolved[-1][0]}" f"are both present in {conf}"
-            )
-
-    class_string = resolved[-1][1] if len(resolved) > 0 else None
-
-    if class_string is None:
-        # legacy strucuture e.g.
-        # {"class_path": "aibox.torch.callbacks.LogImagesCallback", "args: {"log_dir": "./logs"}"}
-        style = "legacy"
-        if "class_path" in conf:
-            class_string = conf["class_path"]
-        elif "target" in conf:
-            class_string = conf["target"]
-        else:
-            raise KeyError("Expected one of `class_path` or `target` as module path to instantiate object")
+    try:
+        class_string = derive_classpath(config)
+        params = derive_args(config, **kwargs)
+    except KeyError:
+        class_string = derive_classpath_deprecated(config)
+        params = derive_args_deprecated(config, **kwargs)
 
     Class = class_from_string(class_string)
-
-    if style == "new":
-        params = {}
-        args_specified = False
-        for skey in SUPPORTED_INIT_ARGS_KEYS:
-            args_specified = skey in conf if not args_specified else args_specified
-            params.update(**conf.pop(skey, dict()))
-
-        if not args_specified:
-            params = dict(**conf)
-
-        params.update(**kwargs)
-    else:
-        params = conf.pop("args", dict())
-        for key in ["args", "kwds", "kwargs", "init_args", "params"]:
-            params.update(**conf.pop(key, dict()))
-
-        params.update(**kwargs)
     return Class(*args, **params)
 
 

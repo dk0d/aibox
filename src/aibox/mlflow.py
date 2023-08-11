@@ -1,19 +1,29 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+import lightning as L
 import mlflow
+from mlflow.entities import Run
 import yaml
 
-from .config import class_from_string, config_from_path
+from .config import (
+    class_from_string,
+    config_from_path,
+    derive_classpath,
+    derive_args,
+)
 
 
 def search_runs(
-    client: mlflow.MlflowClient,
+    tracking_uri: str,
+    registry_uri: str | None = None,
     run_name=None,
     experiment_ids: list[str] | None = None,
     max_results=1,
     filter_string: str | None = None,
-):
+    order_by: list[str] | None = None,
+) -> Run | list[Run]:
+    client: mlflow.MlflowClient = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
     if experiment_ids is None:
         experiment_ids = [e.experiment_id for e in client.search_experiments()]
 
@@ -25,6 +35,8 @@ def search_runs(
     filters = [f for f in filters if f is not None]
 
     filter_string = " AND ".join(f for f in filters if f is not None) if len(filters) > 0 else ""
+
+    order_by = order_by if order_by is not None else ["metrics.`test/loss` DESC"]
 
     runs = client.search_runs(
         experiment_ids,
@@ -39,7 +51,13 @@ def search_runs(
     return runs
 
 
-def load_model_from_run(run, tracking_uri, config, alias="best"):
+def load_model_from_run(
+    run: Run,
+    tracking_uri: str,
+    config,
+    alias="best",
+    **model_kwargs,
+):
     try:
         model_dir = mlflow.artifacts.download_artifacts(
             run_id=run.info.run_id,
@@ -48,15 +66,16 @@ def load_model_from_run(run, tracking_uri, config, alias="best"):
         )
         checkpoints = get_mlflow_checkpoints(Path(model_dir))
         best = [c.path for c in checkpoints if alias in c.aliases][-1]
-        Model = class_from_string(config.model.class_path)
-        model = Model.load_from_checkpoint(best, **config.model.args)
+        Model: L.LightningModule = class_from_string(derive_classpath(config.model))
+        print(model_kwargs)
+        model = Model.load_from_checkpoint(best, **derive_args(config.model, **model_kwargs))
         return model
     except Exception as e:
         print(f"Error loading model for run ID: {run.info.run_id}")
         print(e)
 
 
-def load_config_from_run(run, tracking_uri, config_file="config.yml"):
+def load_config_from_run(run: Run, tracking_uri: str, config_file="config.yml"):
     try:
         config_path = mlflow.artifacts.download_artifacts(
             run_id=run.info.run_id,
@@ -70,12 +89,18 @@ def load_config_from_run(run, tracking_uri, config_file="config.yml"):
         print(e)
 
 
-def load_run(run, tracking_uri, config_file="config.yml", alias="best"):
+def load_run(
+    run: Run,
+    tracking_uri: str,
+    config_file="config.yml",
+    alias="best",
+    **model_kwargs,
+):
     if isinstance(run, str):
         client = mlflow.MlflowClient(tracking_uri=tracking_uri)
         run = client.get_run(run_id=run)
     config = load_config_from_run(run, tracking_uri, config_file)
-    model = load_model_from_run(run, tracking_uri, config, alias)
+    model = load_model_from_run(run, tracking_uri, config, alias, **model_kwargs)
     return config, model
 
 

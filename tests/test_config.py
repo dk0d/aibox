@@ -13,77 +13,77 @@ from aibox.utils import as_path
 from omegaconf import DictConfig
 
 
-def test_init_styles():
+def make_config_variations():
     specs = []
     for target_key in SUPPORTED_INIT_TARGET_KEYS:
         # No args
         specs.append(
-            {
-                "name": f"targetonly-noargs-{target_key}",
-                "config": {
+            (
+                f"targetonly-noargs-{target_key}",
+                {
                     target_key: "aibox.config.ConfigDict",
                 },
-            }
+            )
         )
         # With args
         specs.append(
-            {
-                "name": f"targetonly-args-{target_key}",
-                "config": {
+            (
+                f"targetonly-args-{target_key}",
+                {
                     target_key: "aibox.config.ConfigDict",
                     "a": 2,
                 },
-            }
+            )
         )
         # With args and other keys
         for arg_key in SUPPORTED_INIT_ARGS_KEYS:
             specs.append(
-                {
-                    "name": f"paired-{target_key}-{arg_key}",
-                    "config": {
+                (
+                    f"paired-{target_key}-{arg_key}",
+                    {
                         target_key: "aibox.config.ConfigDict",
                         arg_key: {"a": 2},
                         "other": {"something_that_should_not_be_touched": 10000},
                     },
-                }
+                )
             )
 
     # Deprecated structure
     specs.extend(
         [
-            {
-                "name": "deprecated-1",
-                "config": {
+            (
+                "deprecated-1",
+                {
                     "target": "aibox.config.ConfigDict",
                     "kwargs": {"a": 2},
                     "other": {"something_that_should_not_be_touched": 10000},
                 },
-            },
-            {
-                "name": "deprecated-2",
-                "config": {
+            ),
+            (
+                "deprecated-2",
+                {
                     "class_path": "aibox.config.ConfigDict",
                     "args": {"a": 2},
                     "other": {"something_that_should_not_be_touched": 10000},
                 },
-            },
+            ),
         ]
     )
-    for spec in specs:
-        name = spec["name"]
-        config = spec["config"]
-        config_copy = copy.deepcopy(config)
-        try:
-            callback = init_from_cfg(config)
-            if "-args-" in name:
-                assert callback.a == 2
-            assert config_copy == config
-            if "other" in config:
-                assert (
-                    config["other"]["something_that_should_not_be_touched"] == 10000
-                ), f"Other keys should not be touched: {name}"
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize {name}: {e}  {config}")
+    return specs
+
+
+@pytest.mark.parametrize("name,config", make_config_variations())
+def test_config_parse(name, config):
+    # TODO: test cases that should fail well
+    config_copy = copy.deepcopy(config)
+    callback = init_from_cfg(config)
+    if "-args-" in name:
+        assert callback.a == 2
+    assert config_copy == config
+    if "other" in config:
+        assert (
+            config["other"]["something_that_should_not_be_touched"] == 10000
+        ), f"Other keys should not be touched: {name}"
 
 
 def test_config_dict():
