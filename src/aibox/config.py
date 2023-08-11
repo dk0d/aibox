@@ -92,6 +92,8 @@ def derive_args(config: Config, **kwargs):
         params.update(**conf.pop(skey, dict()))
 
     if not args_specified:
+        for tkey in SUPPORTED_INIT_TARGET_KEYS:
+            _ = conf.pop(tkey, None)
         params = dict(**conf)
 
     params.update(**kwargs)

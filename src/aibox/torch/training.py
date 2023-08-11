@@ -58,7 +58,7 @@ def init_logger(config, log_hyperparams=True) -> Logger | None:
                 print("Run ID:", logger.run_id)
             return logger
         except Exception as e:  # TODO: Better handling of when logger init fails
-            print(f"Failed to initialize logger: {config.logging.class_path}")
+            print(f"Failed to initialize logger: {config.logging}")
             print(e)
             exit(1)
     return None
