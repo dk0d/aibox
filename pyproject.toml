@@ -52,6 +52,11 @@ tag = true
 tag_sign = false
 commit_message = "chore: release v{new_version}"
 
+
+[tool.pytest.ini_options]
+# Only show warnings from aibox
+filterwarnings = ['ignore', ":::aibox"]
+
 [build-system]
 requires = ["hatchling", "hatch-regex-commit"]
 build-backend = "hatchling.build"
