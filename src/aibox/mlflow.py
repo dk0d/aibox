@@ -4,11 +4,13 @@ from pathlib import Path
 import lightning as L
 import mlflow
 from mlflow.entities import Run
+from mlflow.store.entities.paged_list import PagedList
 import yaml
 
 from .config import (
     class_from_string,
     config_from_path,
+    config_from_dotlist,
     derive_classpath,
     derive_args,
 )
@@ -17,12 +19,27 @@ from .config import (
 def search_runs(
     tracking_uri: str,
     registry_uri: str | None = None,
+    *,
     run_name=None,
     experiment_ids: list[str] | None = None,
     max_results=1,
     filter_string: str | None = None,
     order_by: list[str] | None = None,
-) -> Run | list[Run]:
+    page_token: str | None = None,  # get from paged list
+) -> PagedList[Run]:
+    """Search runs in MLFlow
+    for more on search params see: https://mlflow.org/docs/latest/search-runs.html
+
+    Args:
+        tracking_uri (str): [description]
+        registry_uri (str, optional): [description]. Defaults to None.
+        run_name ([type], optional): [description]. Defaults to None.
+        experiment_ids (list[str], optional): [description]. Defaults to None.
+        max_results (int, optional): [description]. Defaults to 1.
+        filter_string (str, optional): [description]. Defaults to None.
+        order_by (list[str], optional): [description]. Defaults to None.
+        page_token (str, optional): get from PagedList. Defaults to None.
+    """
     client: mlflow.MlflowClient = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
     if experiment_ids is None:
         experiment_ids = [e.experiment_id for e in client.search_experiments()]
@@ -43,11 +60,33 @@ def search_runs(
         filter_string=filter_string,
         max_results=max_results,
         order_by=["metrics.`test/loss` DESC"],
+        page_token=page_token,
     )
 
-    if max_results == 1 and len(runs) == 1:
-        return runs[0]
+    return runs
 
+
+def get_runs(
+    tracking_uri: str,
+    registry_uri: str | None = None,
+    *,
+    run_name=None,
+    experiment_ids: list[str] | None = None,
+    max_results=1000,
+    filter_string: str | None = None,
+    order_by: list[str] | None = None,
+    page_token: str | None = None,  # get from paged list
+) -> PagedList[Run]:
+    runs = search_runs(
+        tracking_uri,
+        registry_uri,
+        run_name=run_name,
+        experiment_ids=experiment_ids,
+        max_results=max_results,
+        filter_string=filter_string,
+        order_by=order_by,
+        page_token=page_token,
+    )
     return runs
 
 
@@ -58,35 +97,37 @@ def load_model_from_run(
     alias="best",
     **model_kwargs,
 ):
-    try:
-        model_dir = mlflow.artifacts.download_artifacts(
-            run_id=run.info.run_id,
-            artifact_path="model",
-            tracking_uri=tracking_uri,
-        )
-        checkpoints = get_mlflow_checkpoints(Path(model_dir))
-        best = [c.path for c in checkpoints if alias in c.aliases][-1]
-        Model: L.LightningModule = class_from_string(derive_classpath(config.model))
-        print(model_kwargs)
-        model = Model.load_from_checkpoint(best, **derive_args(config.model, **model_kwargs))
-        return model
-    except Exception as e:
-        print(f"Error loading model for run ID: {run.info.run_id}")
-        print(e)
+    # try:
+    model_dir = mlflow.artifacts.download_artifacts(
+        run_id=run.info.run_id,
+        artifact_path="model",
+        tracking_uri=tracking_uri,
+    )
+    checkpoints = get_mlflow_checkpoints(Path(model_dir))
+    best = [c.path for c in checkpoints if alias in c.aliases][-1]
+    Model: L.LightningModule = class_from_string(derive_classpath(config.model))
+    model = Model.load_from_checkpoint(best, **derive_args(config.model, **model_kwargs))
+    return model
+    # except Exception as e:
+    #     print(f"Error loading model for run ID: {run.info.run_id}")
+    #     print(e)
 
 
 def load_config_from_run(run: Run, tracking_uri: str, config_file="config.yml"):
     try:
-        config_path = mlflow.artifacts.download_artifacts(
-            run_id=run.info.run_id,
-            artifact_path=config_file,
-            tracking_uri=tracking_uri,
-        )
-        config = config_from_path(config_path)
-        return config
-    except Exception as e:
-        print(f"Error loading config for run ID: {run.info.run_id}")
-        print(e)
+        param_config = config_from_dotlist([f"{k}={v}" for k, v in run.data.params.items()])
+        return param_config
+    except Exception:
+        try:
+            config_path = mlflow.artifacts.download_artifacts(
+                run_id=run.info.run_id,
+                artifact_path=config_file,
+                tracking_uri=tracking_uri,
+            )
+            config = config_from_path(config_path)
+            return config
+        except Exception as e:
+            raise Exception(f"Error loading config for run ID: {run.info.run_id} - {e}")
 
 
 def load_run(
