@@ -159,10 +159,12 @@ def init_from_cfg(config: Config, *args, **kwargs):
     return Class(*args, **params)
 
 
-def config_from_toml_stream(stream):
+def config_from_toml_stream(stream, **kwargs):
     from tomlkit import loads
 
-    return OmegaConf.create(loads(stream).unwrap())
+    conf = OmegaConf.create(loads(stream).unwrap())
+    conf = config_merge(conf, dict(**kwargs))
+    return conf
 
 
 def config_from_toml(path: Path | str) -> Config:
