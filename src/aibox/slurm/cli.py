@@ -62,6 +62,13 @@ def sbatch_available() -> bool:
 def main(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--modules",
+        nargs="+",
+        type=str,
+        default=None,
+        help="any extra modules to load in script",
+    )
+    parser.add_argument(
         "--debug",
         "-d",
         action="store_true",
@@ -92,6 +99,7 @@ def main(args=None):
         scripts_dir=config.slurm.script_dir,
         log_dir=as_path(config.slurm.script_dir) / "logs",
         cudaVersion=config.slurm.cuda,
+        modules=args.modules,
         slurm_cfg=SlurmConfig(**config.slurm),
         conda_envs_dir=config.slurm.env_dir,
         debug=args.debug,

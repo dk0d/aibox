@@ -252,10 +252,12 @@ def submit_slurm_script(
     log_dir: Path,
     cudaVersion: str,
     slurm_cfg: SlurmConfig,
+    modules=None,
     conda_envs_dir="~/.conda/envs",
     verbose=False,
     debug=False,
 ):
+    modules = modules if modules is not None else []
     s = Slurm(
         name,
         slurm_kwargs=slurm_cfg.params,
@@ -281,6 +283,7 @@ def submit_slurm_script(
     else:
         _scriptArgs.extend(py_file_args)
 
+    modules = "\n".join([f"module load {m}" for m in modules])
     envPath = as_path(conda_envs_dir) / env_name
     # _scriptArgs = [a for a in _scriptArgs if re.match(r"^--slurm.*", a) is None]
     _scriptArgs = " ".join(_scriptArgs)
@@ -292,6 +295,7 @@ echo "host      : $(hostname -s)"
 echo "Directory : $(pwd)"
 
 module purge
+{modules}
 module load cuda/{cudaVersion}
 module load conda
 export NCCL_DEBUG=INFO
