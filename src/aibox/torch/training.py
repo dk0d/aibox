@@ -146,14 +146,21 @@ def init_trainer(config):
         print(f"error in init_trainer: {e}")
         pass
 
-    accelerator = "gpu"
-    strategy = "auto"
-    if torch.has_cuda and torch.cuda.device_count() > 1:
-        strategy = DDPStrategy(find_unused_parameters=False)
+    if "strategy" in config.trainer:
+        strategy = init_from_cfg(config.strategy)
+    else:
+        if torch.has_cuda and torch.cuda.device_count() > 1:
+            strategy = DDPStrategy(find_unused_parameters=config.get("find_unused_parameters", False))
 
+    strategy = "auto"
     if torch.has_mps:
         accelerator = "mps"
-        strategy = "auto"
+    else:
+        accelerator = "gpu"
+        if "strategy" in config.trainer:
+            strategy = init_from_cfg(config.strategy)
+        elif torch.has_cuda and torch.cuda.device_count() > 1:
+            strategy = DDPStrategy(find_unused_parameters=config.trainer.get("find_unused_parameters", False))
 
     if "profiler" in config.trainer:
         profiler = init_from_cfg(config.trainer.profiler)
