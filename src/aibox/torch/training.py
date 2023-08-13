@@ -153,14 +153,18 @@ def init_trainer(config):
             strategy = DDPStrategy(find_unused_parameters=config.get("find_unused_parameters", False))
 
     strategy = "auto"
+
+    # Set accelerator
     if torch.has_mps:
         accelerator = "mps"
     else:
         accelerator = "gpu"
+
         if "strategy" in config.trainer:
             strategy = init_from_cfg(config.strategy)
-        elif torch.has_cuda and torch.cuda.device_count() > 1:
-            strategy = DDPStrategy(find_unused_parameters=config.trainer.get("find_unused_parameters", False))
+        else:
+            if torch.has_cuda and torch.cuda.device_count() > 1:
+                strategy = DDPStrategy(find_unused_parameters=False)
 
     if "profiler" in config.trainer:
         profiler = init_from_cfg(config.trainer.profiler)
