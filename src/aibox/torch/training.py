@@ -29,7 +29,7 @@ def init_callbacks(config) -> list[L.Callback]:
         callbacks_cfg = config.trainer.callbacks
     else:
         callbacks_cfg = OmegaConf.create()
-    callbacks = [init_from_cfg(cfg) for _, cfg in callbacks_cfg.items()]
+    callbacks = [init_from_cfg(cfg) for _, cfg in callbacks_cfg.items() if "__disable__" not in cfg]
     return callbacks
 
 
