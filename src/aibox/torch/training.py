@@ -146,12 +146,6 @@ def init_trainer(config):
         print(f"error in init_trainer: {e}")
         pass
 
-    if "strategy" in config.trainer:
-        strategy = init_from_cfg(config.trainer.strategy)
-    else:
-        if torch.has_cuda and torch.cuda.device_count() > 1:
-            strategy = DDPStrategy(find_unused_parameters=config.get("find_unused_parameters", False))
-
     strategy = "auto"
 
     # Set accelerator
