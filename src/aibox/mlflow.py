@@ -8,6 +8,7 @@ from mlflow.store.entities.paged_list import PagedList
 import yaml
 
 from .config import (
+    Config,
     class_from_string,
     config_from_path,
     config_from_dotlist,
@@ -22,6 +23,7 @@ def search_runs(
     *,
     run_name=None,
     experiment_ids: list[str] | None = None,
+    experiment_name: str | None = None,
     max_results=1,
     filter_string: str | None = None,
     order_by: list[str] | None = None,
@@ -41,8 +43,10 @@ def search_runs(
         page_token (str, optional): get from PagedList. Defaults to None.
     """
     client: mlflow.MlflowClient = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
+
     if experiment_ids is None:
-        experiment_ids = [e.experiment_id for e in client.search_experiments()]
+        exp_filter_string = None if experiment_name is None else f"attributes.name LIKE '%{experiment_name}%'"
+        experiment_ids = [e.experiment_id for e in client.search_experiments(filter_string=exp_filter_string)]
 
     filters = [(f"attributes.run_name LIKE '%{run_name}%'" if run_name is not None else None)]
 
@@ -90,27 +94,33 @@ def get_runs(
     return runs
 
 
-def load_model_from_run(
-    run: Run,
+def load_ckpt_from_run(
+    run: Run | str,
     tracking_uri: str,
-    config,
     alias="best",
     **model_kwargs,
-):
-    # try:
+) -> tuple[Config, L.LightningModule]:
+    if isinstance(run, str):  # is run_id
+        client = mlflow.MlflowClient(tracking_uri=tracking_uri)
+        run = client.get_run(run_id=run)
+
     model_dir = mlflow.artifacts.download_artifacts(
         run_id=run.info.run_id,
         artifact_path="model",
         tracking_uri=tracking_uri,
     )
+    config = load_config_from_run(run, tracking_uri)
     checkpoints = get_mlflow_checkpoints(Path(model_dir))
     best = [c.path for c in checkpoints if alias in c.aliases][-1]
-    Model: L.LightningModule = class_from_string(derive_classpath(config.model))
-    model = Model.load_from_checkpoint(best, **derive_args(config.model, **model_kwargs))
-    return model
-    # except Exception as e:
-    #     print(f"Error loading model for run ID: {run.info.run_id}")
-    #     print(e)
+    try:
+        if not hasattr(config, "model"):
+            raise Exception("Config has no model key")
+        model_cfg = getattr(config, "model")
+        Model: L.LightningModule = class_from_string(derive_classpath(model_cfg))
+        model = Model.load_from_checkpoint(best, **derive_args(model_cfg, **model_kwargs))
+    except Exception as e:
+        raise Exception(f"Unable to load model for run: {run.info.run_id}\n{e}")
+    return config, model
 
 
 def load_config_from_run(run: Run, tracking_uri: str, config_file="config.yml"):
@@ -130,18 +140,32 @@ def load_config_from_run(run: Run, tracking_uri: str, config_file="config.yml"):
             raise Exception(f"Error loading config for run ID: {run.info.run_id} - {e}")
 
 
-def load_run(
-    run: Run,
+def get_latest(
     tracking_uri: str,
-    config_file="config.yml",
-    alias="best",
-    **model_kwargs,
+    experiment_name=None,
+    run_name=None,
+    run_id=None,
+    filter_string=None,
+    registry_uri=None,
 ):
-    if isinstance(run, str):
-        client = mlflow.MlflowClient(tracking_uri=tracking_uri)
-        run = client.get_run(run_id=run)
-    config = load_config_from_run(run, tracking_uri, config_file)
-    model = load_model_from_run(run, tracking_uri, config, alias, **model_kwargs)
+    run: Run | str | None = None
+    if run_name is not None:
+        lookup = ("name", run_name)
+        runs = list(search_runs(tracking_uri, registry_uri, max_results=1, filter_string=filter_string))
+        if len(runs) == 1:
+            run = runs[0]
+            print(f"Found run: {run.info.run_name} ({run.info.run_id})")
+
+    elif run_id is not None:
+        lookup = ("id", run_id)
+        run = run_id
+    else:
+        raise Exception("One of run_name or run_id must be specified")
+
+    if run is None:
+        raise Exception(f"Unknown run {lookup[0]}: {lookup[1]}")
+
+    config, model = load_ckpt_from_run(run, tracking_uri)
     return config, model
 
 
