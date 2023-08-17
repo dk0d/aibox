@@ -99,7 +99,10 @@ def test_config_dict(name, config):
         assert callback.a == 2
     if "other" in config:
         assert isinstance(config["other"], ConfigDict)
-        assert isinstance(config["other"].to_dict(), dict)
+        assert not isinstance(config["other"].to_dict(), ConfigDict)
+        if "nested_dicts" in config["other"]:
+            assert isinstance(config["other"]["nested_dicts"], ConfigDict)
+            assert not isinstance(config["other"]["nested_dicts"].to_dict(), ConfigDict)
         assert (
             config["other"]["something_that_should_not_be_touched"] == 10000
         ), f"Other keys should not be touched: {name}"
