@@ -1,7 +1,7 @@
 import importlib
 from pathlib import Path
 from typing import TypeAlias
-
+from typing_extensions import Self
 from omegaconf import DictConfig, OmegaConf
 
 from .utils import as_path
@@ -12,15 +12,6 @@ Config: TypeAlias = DictConfig | dict
 
 SUPPORTED_INIT_TARGET_KEYS = ["__classpath__", "__class_path__", "__target__", "__init_target__"]
 SUPPORTED_INIT_ARGS_KEYS = ["__args__", "__kwargs__", "__init_args__", "__init_kwargs__"]
-
-# class Config(DictConfig):
-
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-
-#     def update(self, *args, **kwargs):
-#         OmegaConf.update(self, *args, **kwargs)
-#         return self
 
 
 def is_list(x) -> bool:
@@ -290,17 +281,17 @@ class ConfigDict(dict):
         except KeyError:
             raise AttributeError(name)
 
-    @staticmethod
-    def __dict_to_configdict__(d: dict):
+    @classmethod
+    def __dict_to_configdict__(cls, d: dict):
         d = ConfigDict(d)
         for k, v in d.items():
             if isinstance(v, dict):
-                d[k] = ConfigDict.__dict_to_configdict__(v)
+                d[k] = cls.__dict_to_configdict__(v)
         return d
 
     def __setattr__(self, name: str, value):
         if isinstance(value, dict):
-            value = ConfigDict.__dict_to_configdict__(value)
+            value = self.__dict_to_configdict__(value)
         self[name] = value
 
     def __delattr__(self, name: str):
@@ -312,11 +303,16 @@ class ConfigDict(dict):
 
         for k, v in out.items():
             # TODO: why doesn't this work?
-            # if isinstance(v, ConfigDict):
-            if v.__class__.__name__.split(".")[-1] == "ConfigDict":
+            if isinstance(v, ConfigDict):
                 out[k] = v.to_dict()
         return out
 
     def to_config(self):
         """Convert to OmegaConf config."""
         return config_from_dict(self.to_dict())
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for k, v in self.items():
+            if isinstance(v, dict):
+                self[k] = self.__dict_to_configdict__(v)

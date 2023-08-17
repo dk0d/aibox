@@ -43,7 +43,10 @@ def make_config_variations():
                     {
                         target_key: "aibox.config.ConfigDict",
                         arg_key: {"a": 2},
-                        "other": {"something_that_should_not_be_touched": 10000},
+                        "other": {
+                            "something_that_should_not_be_touched": 10000,
+                            "nested_dicts": {"a": 1, "b": {"c": 2}},
+                        },
                     },
                 )
             )
@@ -86,13 +89,20 @@ def test_config_parse(name, config):
         ), f"Other keys should not be touched: {name}"
 
 
-def test_config_dict():
-    config = ConfigDict()
-    config.__classpath__ = "aibox.config.ConfigDict"
-    config.a = 2
+@pytest.mark.parametrize("name,config", make_config_variations())
+def test_config_dict(name, config):
+    config = ConfigDict(**config)
     callback = init_from_cfg(config)
-    assert isinstance(callback, ConfigDict), f"Expected ConfigDict got {type(callback)}"
-    assert callback.a == 2, f"Expected a=2, got {callback.a}"
+
+    assert isinstance(callback, ConfigDict)
+    if "-args-" in name:
+        assert callback.a == 2
+    if "other" in config:
+        assert isinstance(config["other"], ConfigDict)
+        assert isinstance(config["other"].to_dict(), dict)
+        assert (
+            config["other"]["something_that_should_not_be_touched"] == 10000
+        ), f"Other keys should not be touched: {name}"
 
 
 def test_config_conversion():
