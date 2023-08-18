@@ -3,18 +3,19 @@ from pathlib import Path
 
 import lightning as L
 import mlflow
+import yaml
 from mlflow.entities import Run
 from mlflow.store.entities.paged_list import PagedList
-import yaml
 
 from .config import (
     Config,
     class_from_string,
-    config_from_path,
     config_from_dotlist,
-    derive_classpath,
+    config_from_path,
     derive_args,
+    derive_classpath,
 )
+from .torch.utils import get_device
 
 
 def search_runs(
@@ -98,6 +99,7 @@ def load_ckpt_from_run(
     run: Run | str,
     tracking_uri: str,
     alias="best",
+    new_root=None,
     **model_kwargs,
 ) -> tuple[Config, L.LightningModule]:
     if isinstance(run, str):  # is run_id
@@ -109,35 +111,42 @@ def load_ckpt_from_run(
         artifact_path="model",
         tracking_uri=tracking_uri,
     )
-    config = load_config_from_run(run, tracking_uri)
+    config = load_config_from_run(run, tracking_uri, new_root=new_root)
     checkpoints = get_mlflow_checkpoints(Path(model_dir))
     best = [c.path for c in checkpoints if alias in c.aliases][-1]
-    try:
-        if not hasattr(config, "model"):
-            raise Exception("Config has no model key")
-        model_cfg = getattr(config, "model")
-        Model: L.LightningModule = class_from_string(derive_classpath(model_cfg))
-        model = Model.load_from_checkpoint(best, **derive_args(model_cfg, **model_kwargs))
-    except Exception as e:
-        raise Exception(f"Unable to load model for run: {run.info.run_id}\n{e}")
+    # try:
+    if not hasattr(config, "model"):
+        raise Exception("Config has no model key")
+    model_cfg = getattr(config, "model")
+    Model: L.LightningModule = class_from_string(derive_classpath(model_cfg))
+    device = get_device()
+    model_kwargs.update(map_location=device)
+    model = Model.load_from_checkpoint(best, **derive_args(model_cfg, **model_kwargs))
+    # except Exception as e:
+    # raise Exception(f"Unable to load model for run: {run.info.run_id}\n{e}")
     return config, model
 
 
-def load_config_from_run(run: Run, tracking_uri: str, config_file="config.yml"):
+def load_config_from_run(run: Run, tracking_uri: str, config_file="config.yml", new_root=None):
+    from .utils import resolve_paths
+
+    # try:
+    # param_config = config_from_dotlist([f"{k}={v}" for k, v in run.data.params.items()])
+    # return param_config
+    # except Exception:
     try:
-        param_config = config_from_dotlist([f"{k}={v}" for k, v in run.data.params.items()])
-        return param_config
-    except Exception:
-        try:
-            config_path = mlflow.artifacts.download_artifacts(
-                run_id=run.info.run_id,
-                artifact_path=config_file,
-                tracking_uri=tracking_uri,
-            )
-            config = config_from_path(config_path)
-            return config
-        except Exception as e:
-            raise Exception(f"Error loading config for run ID: {run.info.run_id} - {e}")
+        config_path = mlflow.artifacts.download_artifacts(
+            run_id=run.info.run_id,
+            artifact_path=config_file,
+            tracking_uri=tracking_uri,
+        )
+        config = config_from_path(config_path)
+
+        if new_root is not None:
+            resolve_paths(config, new_root)
+        return config
+    except Exception as e:
+        raise Exception(f"Error loading config for run ID: {run.info.run_id} - {e}")
 
 
 def get_latest(
@@ -147,11 +156,16 @@ def get_latest(
     run_id=None,
     filter_string=None,
     registry_uri=None,
+    new_root=None,
 ):
     run: Run | str | None = None
     if run_name is not None:
         lookup = ("name", run_name)
-        runs = list(search_runs(tracking_uri, registry_uri, max_results=1, filter_string=filter_string))
+        runs = list(
+            search_runs(
+                tracking_uri, registry_uri, max_results=1, experiment_name=experiment_name, filter_string=filter_string
+            )
+        )
         if len(runs) == 1:
             run = runs[0]
             print(f"Found run: {run.info.run_name} ({run.info.run_id})")
@@ -165,7 +179,11 @@ def get_latest(
     if run is None:
         raise Exception(f"Unknown run {lookup[0]}: {lookup[1]}")
 
-    config, model = load_ckpt_from_run(run, tracking_uri)
+    config, model = load_ckpt_from_run(
+        run,
+        tracking_uri,
+        new_root=new_root,
+    )
     return config, model
 
 
