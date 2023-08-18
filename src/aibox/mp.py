@@ -18,6 +18,7 @@ def multiprocess(
     poolMode="process",  # or 'thread'
     onResult: Optional[Callable] = None,
     maxJobs=400,
+    maxWorkers=None,
     desc="Processing",
     mute=True,
     showProg=True,
@@ -49,7 +50,9 @@ def multiprocess(
     else:
         ProcessPool = ThreadPoolExecutor
 
-    poolKwds = {}
+    poolKwds: dict = {
+        "max_workers": maxWorkers,
+    }
 
     if mute:
         poolKwds["initializer"] = _initializer_mute
