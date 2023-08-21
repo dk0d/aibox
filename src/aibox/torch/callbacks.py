@@ -10,6 +10,8 @@ from mlflow.client import MlflowClient
 from PIL import Image
 from torch.utils.tensorboard.writer import SummaryWriter
 
+from aibox.utils import nearest_square_grid
+
 from .logging import CombinedLogger
 
 
@@ -89,7 +91,6 @@ class LogImagesCallback(L.Callback):
         self,
         step_frequency=100000,
         frequency_increase_base=2,
-        nrow=8,
         max_images=8,
         clamp=True,
         rescale=False,
@@ -98,7 +99,9 @@ class LogImagesCallback(L.Callback):
         log_first_step=False,
         interlace_images=True,
         get_log_images_kwargs=None,
+        images_as_single_grid=True,
         disabled=False,
+        **kwargs,  # ignore extra kwargs
     ):
         """
         Create a new LogImagesCallback.
@@ -107,7 +110,6 @@ class LogImagesCallback(L.Callback):
             step_frequency (int, optional): Log images every `step_frequency` steps. Defaults to 100000.
             frequency_increase_base (int, optional): Base of the exponential increase of the log frequency.
                 Defaults to 2.
-            nrow (int, optional): Number of images per row. Defaults to 8.
             max_images (int, optional): Maximum number of images to log. Defaults to 8.
             clamp (bool, optional): Clamp images to [0, 1]. Defaults to True.
             rescale (bool, optional): Rescale images to [0, 1]. Defaults to False.
@@ -116,12 +118,15 @@ class LogImagesCallback(L.Callback):
             log_first_step (bool, optional): Log images on the first step. Defaults to False.
             log_images_kwargs (dict, optional): Additional kwargs to pass to `get_log_images`. Defaults to None.
             log_last (bool, optional): Log images on the last step. Defaults to True.
+            images_as_single_grid (bool, optional): Log all images (from a list of batched tensor images) together to
+                single image grid. If false, saves each image batch to separate file and tries to make square-ish grid.
+                Defaults to True.
             disabled (bool, optional): Disable the callback. Defaults to False.
         """
         super().__init__()
         self.step_frequency = step_frequency
         self.max_images = max_images
-        self.nrow = nrow
+        self.images_as_single_grid = images_as_single_grid
         self.log_on_batch_idx = log_on_batch_idx
         self.log_first_step = log_first_step
         self.rescale = rescale
@@ -151,9 +156,9 @@ class LogImagesCallback(L.Callback):
     @staticmethod
     def _img_path(split, global_step, epoch_idx, batch_idx=None, k=None):
         if batch_idx is None:
-            out = f"{split}/epoch{epoch_idx}/gs{global_step}"
+            out = f"{split}/epoch{epoch_idx}/gs{global_step}_e{epoch_idx}"
         else:
-            out = f"{split}/epoch{epoch_idx}/gs{global_step}_b{batch_idx}"
+            out = f"{split}/epoch{epoch_idx}/gs{global_step}_e{epoch_idx}_b{batch_idx}"
 
         if k is not None:
             out += f"_{k}"
@@ -179,15 +184,16 @@ class LogImagesCallback(L.Callback):
     def _tensorboard(
         self,
         pl_module,
-        image,
+        image: torch.Tensor,
         split,
+        ncols,
         batch_idx=None,
         k=None,
     ):
         writer: SummaryWriter = pl_module.logger.experiment
         if not isinstance(writer, SummaryWriter):
             return
-        grid = torchvision.utils.make_grid(image, nrow=self.nrow)
+        grid = torchvision.utils.make_grid(image, nrow=ncols)
         grid = self._normalize(grid)
         label = self._img_path(
             split,
@@ -202,8 +208,9 @@ class LogImagesCallback(L.Callback):
     def _mlflow(
         self,
         pl_module: L.LightningModule,
-        image: list[torch.Tensor],
+        image: torch.Tensor,
         split: str,
+        ncols: int,
         batch_idx: int | None = None,
         k: int | None = None,
     ):
@@ -213,16 +220,15 @@ class LogImagesCallback(L.Callback):
 
         Args:
             pl_module (L.LightningModule): ...
-            images (list[torch.Tensor]): each tensor is a batch of images of shape (N, C, H, W)
+            images (torch.Tensor): each tensor is a batch of images of shape (N, C, H, W)
             k (int): image index if not interlaced, defaults to None
-            split (str): _description_
-            batch_idx (int, optional): . Defaults to None.
+            split (str): train, val, test
+            batch_idx (int, optional): Defaults to None.
         """
         logger = pl_module.logger
         if not isinstance(logger, (CombinedLogger, MLFlowLogger)):
             return
-        # for k, image in enumerate(images):  # allows for multiple images per batch
-        grid = torchvision.utils.make_grid(image, nrow=self.nrow)
+        grid = torchvision.utils.make_grid(image, nrow=ncols)
         grid = self._normalize(grid)
         label = self._img_path(
             split,
@@ -253,21 +259,25 @@ class LogImagesCallback(L.Callback):
         self,
         save_dir,
         split,
-        images,
+        image: torch.Tensor,
         global_step,
         current_epoch,
         batch_idx,
+        k=None,
     ):
         root = Path(save_dir) / "images" / split
-        for k in images:
-            grid = torchvision.utils.make_grid(images[k], nrow=self.nrow)
-            grid = self._normalize(grid)
-            grid = grid.transpose(0, 1).transpose(1, 2).squeeze(-1)
-            grid = grid.numpy().astype(np.uint8)
+
+        grid = torchvision.utils.make_grid(image, nrow=len(image))
+        grid = self._normalize(grid)
+        grid = grid.transpose(0, 1).transpose(1, 2).squeeze(-1)
+        grid = grid.numpy().astype(np.uint8)
+        if k is None:
+            filename = "gs-{:06}_e-{:06}_b-{:06}.png".format(global_step, current_epoch, batch_idx)
+        else:
             filename = "{}_gs-{:06}_e-{:06}_b-{:06}.png".format(k, global_step, current_epoch, batch_idx)
-            path = root / filename
-            path.parent.mkdir(parents=True, exist_ok=True)
-            Image.fromarray(grid).save(path)
+        path = root / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        Image.fromarray(grid).save(path)
 
     def log_image(
         self,
@@ -295,15 +305,17 @@ class LogImagesCallback(L.Callback):
             _logger_log_images = self._logger_log_images.get(logger, self._NOOP_log)
 
             if self.interlace_images:  # log all images together to single image grid
+                ncols = len(images)
                 all_images = self._interlace_images(images, self.max_images)
-                _logger_log_images(pl_module, all_images, split, batch_idx)
+                _logger_log_images(pl_module, all_images, ncols=ncols, split=split, batch_idx=batch_idx)
             else:  # log each batch of images separately
                 for k, img in enumerate(images):
                     N = min(img.shape[0], self.max_images)
                     img = img[:N]
+                    _, ncols = nearest_square_grid(N)  # make square-ish grid
                     if isinstance(img, torch.Tensor):
                         img = img.detach().cpu()
-                    _logger_log_images(pl_module, img, split, batch_idx, k=k)
+                    _logger_log_images(pl_module, img, ncols=ncols, split=split, batch_idx=batch_idx, k=k)
 
             # self.log_local(
             #     pl_module.logger.save_dir, split, images, pl_module.global_step, pl_module.current_epoch, batch_idx
