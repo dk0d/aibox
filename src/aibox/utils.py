@@ -2,11 +2,32 @@ from collections.abc import Sequence
 from pathlib import Path
 from pprint import pformat
 from typing import TypeGuard, TypeVar
-
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from rich import print as rprint
+import numpy as np
 
 T = TypeVar("T")
+
+
+def nearest_square_grid(num: int) -> tuple[int, int]:
+    """
+    Returns the nearest square number to the given number
+    as a tuple of (nrows, ncols)
+
+    assumes num < 50
+
+    """
+
+    primes = [3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47]
+
+    if num in primes:
+        num = num + 1
+
+    factors = [i for i in range(1, num + 1) if num % i == 0]
+    nrows, ncols = factors[len(factors) // 2], factors[len(factors) // 2 - 1]
+    if nrows * nrows == num:
+        return nrows, nrows
+    return nrows, ncols
 
 
 def is_list_of(obj: Sequence, T) -> TypeGuard[Sequence]:
