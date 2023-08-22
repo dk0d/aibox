@@ -4,7 +4,8 @@ from pprint import pformat
 from typing import TypeGuard, TypeVar
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from rich import print as rprint
-import numpy as np
+
+# import numpy as np
 
 T = TypeVar("T")
 
@@ -34,7 +35,9 @@ def is_list_of(obj: Sequence, T) -> TypeGuard[Sequence]:
     return all(isinstance(el, T) for el in obj)
 
 
-def as_path(path: str | Path) -> Path:
+def as_path(path: str | Path | None) -> Path | None:
+    if path is None:
+        return None
     return Path(path).expanduser().resolve()
 
 
@@ -48,13 +51,22 @@ def print(*args, **kwargs):
     rprint(*args, **kwargs)
 
 
-def as_uri(path: str | Path) -> str:
+def as_uri(path: str | Path | None) -> str | None:
+    if path is None:
+        return None
+
     import re
 
     if re.search(r"^[\w]+://", str(path)) is not None:
         # already a URI
         return str(path)
-    return as_path(path).as_uri()
+
+    path = as_path(path)
+
+    if path is not None:
+        return path.as_uri()
+
+    return str(path)
 
 
 def chunk(iterable, n):
@@ -101,7 +113,7 @@ def resolve_paths(config, new_root=Path.cwd()):
             if ("root" in k or "dir" in k) and isinstance(v, str):
                 try:
                     p = as_path(v)
-                    if p.is_relative_to(old_root):
+                    if p is not None and p.is_relative_to(old_root):
                         config[k] = new_root / p.relative_to(old_root)
                 except Exception:
                     pass
@@ -111,10 +123,11 @@ def resolve_paths(config, new_root=Path.cwd()):
     def _path_intersection(p1, p2):
         p1, p2 = as_path(p1), as_path(p2)
         same = []
-        for c1, c2 in zip(p1.parts, p2.parts):
-            if c1 != c2:
-                break
-            same.append(c1)
+        if p1 is not None and p2 is not None:
+            for c1, c2 in zip(p1.parts, p2.parts):
+                if c1 != c2:
+                    break
+                same.append(c1)
         return as_path("/".join(same))
 
     paths: list[Path] = get_config_root(config)
