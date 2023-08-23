@@ -20,23 +20,32 @@ class InputMonitor(L.Callback):
     This callback logs a histogram of the input to the model every `log_every_n_steps` steps.
     """
 
-    def on_train_batch_start(self, trainer: L.Trainer, pl_module: L.LightningModule, batch, batch_idx: int) -> None:
+    def on_train_batch_start(
+        self,
+        trainer: L.Trainer,
+        pl_module: L.LightningModule,
+        batch,
+        batch_idx: int,
+    ) -> None:
         if trainer.logger is None:
             return
 
-        if (batch_idx + 1) % trainer.log_every_n_steps == 0:
-            x, *_ = batch
-            if isinstance(trainer.logger.experiment, SummaryWriter):
-                experiment = trainer.logger.experiment
-            elif hasattr(trainer.logger, "tb_writer"):
-                experiment = trainer.logger.tb_writer
-            else:
-                return
+        try:
+            if (batch_idx + 1) % trainer.log_every_n_steps == 0:
+                x, *_ = batch
+                if isinstance(trainer.logger.experiment, SummaryWriter):
+                    experiment = trainer.logger.experiment
+                elif hasattr(trainer.logger, "tb_writer"):
+                    experiment = trainer.logger.tb_writer
+                else:
+                    return
 
-            if experiment is None:
-                return
+                if experiment is None:
+                    return
 
-            experiment.add_histogram("input", x, global_step=trainer.global_step)
+                experiment.add_histogram("input", x, global_step=trainer.global_step)
+        except:
+            pass
 
 
 class CheckBatchGradient(L.Callback):
@@ -46,7 +55,11 @@ class CheckBatchGradient(L.Callback):
     Validates that the model does not mix data across the batch dimension.
     """
 
-    def on_train_start(self, trainer: L.Trainer, module: L.LightningModule) -> None:
+    def on_train_start(
+        self,
+        trainer: L.Trainer,
+        module: L.LightningModule,
+    ) -> None:
         """
         Called when training begins
         """

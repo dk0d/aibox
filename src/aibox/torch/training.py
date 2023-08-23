@@ -9,10 +9,13 @@ from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.utilities.model_helpers import is_overridden
 
 from aibox.cli import AIBoxCLI, OmegaConf
-from aibox.config import config_to_dotlist, init_from_cfg
-from aibox.utils import print
+from aibox.config import init_from_cfg
+from aibox.logger import get_logger
 
 EVALUATE_OUTPUT = list[dict[str, float]]  # 1 dict per DataLoader
+
+
+LOGGER = get_logger(__name__)
 
 
 def init_callbacks(config) -> list[L.Callback]:
@@ -55,13 +58,12 @@ def init_logger(config, log_hyperparams=True) -> Logger | None:
                 logger.log_hyperparams(config)
 
             if hasattr(logger, "experiment_name"):
-                print("Experiment Name:", logger.experiment_name)
+                LOGGER.info(f"Experiment Name: {logger.experiment_name}")
             if hasattr(logger, "run_id"):
-                print("Run ID:", logger.run_id)
+                LOGGER.info(f"Run ID: {logger.run_id}")
             return logger
         except Exception as e:  # TODO: Better handling of when logger init fails
-            print(f"Failed to initialize logger: {config.logging}")
-            print(e)
+            LOGGER.error(f"Failed to initialize logger: {config.logging}")
             exit(1)
     return None
 
@@ -98,14 +100,11 @@ def handle_slurm_param(config):
                 "SLURM_CPUS_ON_NODE",
             ]
         }
-        for k, v in slurmMeta.items():
-            print(f"{k:22} \t: {str(v):>10}")
 
         try:
             config.data.num_workers = int(slurmMeta["SLURM_TASKS_PER_NODE"])
         except Exception as e:
-            print("Failed to set num_workers from SLURM_TASKS_PER_NODE")
-            print(e)
+            LOGGER.error("Failed to set num_workers from SLURM_TASKS_PER_NODE", exc_info=True)
         # torch.set_float32_matmul_precision("medium")
     else:
         slurmMeta = {}
@@ -128,7 +127,7 @@ def init_trainer(config):
     logger = init_logger(config)
 
     if logger is not None:
-        print(f"Logging to: {logger.log_dir}")
+        LOGGER.info(f"Logging to: {logger.log_dir}")
         trainerParams.update(logger=logger)
 
     callbacks = init_callbacks(config)
@@ -145,7 +144,7 @@ def init_trainer(config):
 
             trainerParams.update(enable_progress_bar=False)
     except Exception as e:
-        print(f"error in init_trainer: {e}")
+        LOGGER.error("error in init_trainer", exc_info=True)
         pass
 
     strategy = "auto"
@@ -203,9 +202,9 @@ def init_model(config) -> L.LightningModule:
         # TODO: Add support for logging model graph in combined logger
         if config.logging.args.log_graph:
             if not hasattr(model, "example_input_array"):
-                print("[yellow bold] WARNING [/yellow bold]: Model does not `example_input_array`")
-                print("[yellow bold italic]Model must have `example_input_array` attribute when log_graph=True")
-                print("[blue] Setting log_graph=False")
+                LOGGER.info("[yellow bold] WARNING [/yellow bold]: Model does not `example_input_array`")
+                LOGGER.info("[yellow bold italic]Model must have `example_input_array` attribute when log_graph=True")
+                LOGGER.info("[blue] Setting log_graph=False")
                 config.logging.log_graph = False
     except Exception:
         pass
@@ -232,18 +231,14 @@ def train(config) -> tuple[L.LightningModule, L.LightningDataModule, L.Trainer]:
     if "seed" in config:
         seed_everything(config.seed, True)
 
-    print("*" * 50)
     model = init_model(config)
-    print("model", model)
-    print("*" * 50)
+    LOGGER.info(f"MODEL INITIALIZED: {model.__class__.__name__}")
 
     dm = init_from_cfg(config.data)
 
+    LOGGER.info("TRAINING START")
     trainer.fit(model=model, datamodule=dm)
-
-    print("*" * 80)
-    print("TRAINING DONE")
-    print("*" * 80)
+    LOGGER.info("TRAINING DONE")
 
     return model, dm, trainer
 
@@ -261,17 +256,15 @@ def train_and_test(config) -> EVALUATE_OUTPUT | None:
     model, dm, trainer = train(config)
 
     if not is_overridden("test_step", model):
-        print("No testing step found on model. Skipping testing")
+        LOGGER.info("No testing step found on model. Skipping testing")
         return None
     try:
+        LOGGER.info("TESTING START")
         testing_results = trainer.test(model=model, datamodule=dm)
-
-        print("*" * 80)
-        print("TESTING DONE")
-        print("*" * 80)
+        LOGGER.info("TESTING DONE")
         return testing_results
-    except Exception as e:
-        print(f"error in test: {e}")
+    except Exception:
+        LOGGER.exception("error during test")
         pass
 
     return None
@@ -292,13 +285,10 @@ def main(args=None):
     config = cli.parse_args(args=args)
 
     if config.exp_name is None:
-        print("Experiment name must be specified")
+        LOGGER.error("Experiment name must be specified")
         exit(1)
 
     handle_slurm_param(config)
-
-    print(config_to_dotlist(config))
-
     results = train_and_test(config)
 
     return results

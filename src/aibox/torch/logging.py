@@ -3,6 +3,7 @@ from typing import Any
 
 from omegaconf import DictConfig, OmegaConf
 
+
 from aibox.config import config_to_dotlist
 from aibox.utils import as_path
 
