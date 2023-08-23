@@ -7,6 +7,7 @@ from lightning import seed_everything
 from lightning.pytorch.loggers import Logger
 from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.utilities.model_helpers import is_overridden
+from lightning.pytorch.callbacks import RichProgressBar
 
 from aibox.cli import AIBoxCLI, OmegaConf
 from aibox.config import init_from_cfg
@@ -35,6 +36,7 @@ def init_callbacks(config) -> list[L.Callback]:
     callbacks = [cfg for _, cfg in callbacks_cfg.items() if "__disable__" not in cfg or not cfg.__disable__]
     [cfg.pop("__disable__", None) for cfg in callbacks]
     callbacks = [init_from_cfg(cfg) for cfg in callbacks]
+    callbacks.append(RichProgressBar())
     return callbacks
 
 
