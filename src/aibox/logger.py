@@ -4,9 +4,9 @@ from rich.logging import RichHandler
 from aibox.utils import as_path
 
 
-def set_basic_config_rich(format="$(message)s", datefmt="[%X]"):
+def set_basic_config_rich(format="%(message)s", datefmt="[%X]"):
     logging.basicConfig(
-        level=logging.NOTSET,
+        level=logging.INFO,
         format=format,
         datefmt=datefmt,
         handlers=[RichHandler(rich_tracebacks=True, markup=True)],
@@ -16,15 +16,20 @@ def set_basic_config_rich(format="$(message)s", datefmt="[%X]"):
 def get_logger(
     name,
     add_file_handler=False,
-    file_level=logging.ERROR,
+    file_level=logging.NOTSET,
     log_dir="event_logs",
 ) -> Logger:
+    set_basic_config_rich()
     logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
 
     if add_file_handler:
-        log_path = as_path(log_dir) / name
+        log_dir = as_path(log_dir)
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / name
         file_handler = logging.FileHandler(log_path.with_suffix(".log").as_posix())
         file_handler.setLevel(file_level)
+        file_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)-8s - %(message)s"))
         logger.addHandler(file_handler)
 
     return logger
