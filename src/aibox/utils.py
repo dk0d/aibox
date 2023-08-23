@@ -35,9 +35,7 @@ def is_list_of(obj: Sequence, T) -> TypeGuard[Sequence]:
     return all(isinstance(el, T) for el in obj)
 
 
-def as_path(path: str | Path | None) -> Path | None:
-    if path is None:
-        return None
+def as_path(path: str | Path) -> Path:
     return Path(path).expanduser().resolve()
 
 

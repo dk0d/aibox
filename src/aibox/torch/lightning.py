@@ -278,6 +278,37 @@ class DataModuleFromConfig(L.LightningDataModule):
         return self._get_dataloader("predict", shuffle)
 
 
+def configure_optimizers(module: L.LightningModule, optimizers_cfg, schedulers_cfg):
+    optims = []
+    scheds = []
+
+    # see: https://pytorch-lightning.readthedocs.io/en/latest/advanced/model_parallel.html#auto-wrapping
+    # self.trainer.model.parameters(), # instead of self.model.parameters() for details -- for fully
+    # sharded model training
+    if is_list(optimizers_cfg):
+        for cfg in optimizers_cfg:
+            optims.append(init_from_cfg(cfg, module.parameters()))
+    elif is_dict(optimizers_cfg):
+        optims.append(init_from_cfg(optimizers_cfg, module.parameters()))
+    else:
+        raise NotImplementedError
+
+    if schedulers_cfg is not None:
+        if is_list(schedulers_cfg):
+            assert len(optims) == len(schedulers_cfg), "scheduler list must be same length as optimizers"
+            for i, cfg in enumerate(schedulers_cfg):
+                scheds.append(init_from_cfg(cfg, optims[i]))
+        elif is_dict(schedulers_cfg):
+            scheds.append(init_from_cfg(schedulers_cfg))
+        else:
+            raise NotImplementedError
+
+    if len(scheds) > 0 and len(optims) > 0:
+        return optims, scheds
+
+    return optims[0]
+
+
 class LightningModuleFromConfig(L.LightningModule):
     def __init__(self, *, model, optimizers, schedulers, loss, **kwargs):
         """
@@ -301,31 +332,4 @@ class LightningModuleFromConfig(L.LightningModule):
         self.current_device = None
 
     def configure_optimizers(self):
-        optims = []
-        scheds = []
-
-        # see: https://pytorch-lightning.readthedocs.io/en/latest/advanced/model_parallel.html#auto-wrapping
-        # self.trainer.model.parameters(), # instead of self.model.parameters() for details -- for fully
-        # sharded model training
-        if is_list(self.optimizers_cfg):
-            for cfg in self.optimizers_cfg:
-                optims.append(init_from_cfg(cfg, self.parameters()))
-        elif is_dict(self.optimizers_cfg):
-            optims.append(init_from_cfg(self.optimizers_cfg, self.parameters()))
-        else:
-            raise NotImplementedError
-
-        if self.schedulers_cfg is not None:
-            if is_list(self.schedulers_cfg):
-                assert len(optims) == len(self.schedulers_cfg), "scheduler list must be same length as optimizers"
-                for i, cfg in enumerate(self.schedulers_cfg):
-                    scheds.append(init_from_cfg(cfg, optims[i]))
-            elif is_dict(self.schedulers_cfg):
-                scheds.append(init_from_cfg(self.schedulers_cfg))
-            else:
-                raise NotImplementedError
-
-        if len(scheds) > 0 and len(optims) > 0:
-            return optims, scheds
-
-        return optims[0]
+        return configure_optimizers(self, self.optimizers_cfg, self.schedulers_cfg)
