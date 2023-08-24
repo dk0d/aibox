@@ -286,7 +286,7 @@ def main(args=None):
 
     config = cli.parse_args(args=args)
 
-    if config.exp_name is None:
+    if config.name is None:
         LOGGER.error("Experiment name must be specified")
         exit(1)
 
