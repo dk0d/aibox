@@ -4,17 +4,18 @@ import itertools
 import os
 import sys
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from typing import Callable, Any
+from typing import Any, Callable
 
-from aibox.logger import get_logger
 from rich.console import Console
 from rich.progress import (
     BarColumn,
     Progress,
     TextColumn,
-    TimeRemainingColumn,
     TimeElapsedColumn,
+    TimeRemainingColumn,
 )
+
+from aibox.logger import get_logger
 
 
 def _initializer_mute():
