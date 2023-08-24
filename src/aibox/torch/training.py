@@ -237,6 +237,7 @@ def train(config) -> tuple[L.LightningModule, L.LightningDataModule, L.Trainer]:
     LOGGER.info(f"MODEL INITIALIZED: {model.__class__.__name__}")
 
     dm = init_from_cfg(config.data)
+    LOGGER.info(f"DATAMODULE INITIALIZED: {dm.__class__.__name__}")
 
     LOGGER.info("TRAINING START")
     trainer.fit(model=model, datamodule=dm)
