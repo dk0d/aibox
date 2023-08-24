@@ -31,7 +31,6 @@ def multiprocess(
     mute=True,
     showProg=True,
     stopAllOnException=False,
-    transient=False,
 ):
     """
     Multi-processing helper for handling job submission and
@@ -125,11 +124,3 @@ def multiprocess(
                         onResult(res, progress)
 
                     progress.update(collecting, advance=1.0)
-
-
-def sleeeper(a, b):
-    time.sleep(2)
-
-
-if __name__ == "__main__":
-    multiprocess(sleeeper, [{"a": 1, "b": 2} for i in range(100)], maxJobs=10, desc="Sleeping")
