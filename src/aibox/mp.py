@@ -10,7 +10,14 @@ import time
 from pandas.io.formats.printing import justify
 
 from aibox.logger import get_logger
-from rich.progress import BarColumn, Progress, TextColumn, TimeRemainingColumn, TimeElapsedColumn
+from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    Progress,
+    TextColumn,
+    TimeRemainingColumn,
+    TimeElapsedColumn,
+)
 
 
 def _initializer_mute():
@@ -63,8 +70,11 @@ def multiprocess(
         "(",
         TimeElapsedColumn(),
         ")",
+        refresh_per_second=1,
+        # WARN: the console doesn't get detected sometimes here, so it's forced
+        # Needs to be checked for issues
+        console=Console(file=sys.stdout, force_terminal=True),
     )
-    task = progress.add_task(desc, start=True, total=len(kwargsList), visible=showProg)
 
     if poolMode == "process":
         ProcessPool = ProcessPoolExecutor
@@ -81,6 +91,8 @@ def multiprocess(
     iterArgs = iter(kwargsList)
 
     with progress:
+        task = progress.add_task(desc, start=True, total=len(kwargsList), visible=showProg)
+
         with ProcessPool(**poolKwds) as pool:
             # with ProcessPool(**poolKwds) as pool:
             futures = {pool.submit(func, **a) for a in itertools.islice(iterArgs, maxJobs)}
@@ -103,7 +115,7 @@ def multiprocess(
                             except Exception:
                                 pass
 
-                        progress.update(task, advance=1.0)
+                        progress.update(task, advance=1.0, refresh=True)
 
                     for a in itertools.islice(iterArgs, len(done)):
                         futures.add(pool.submit(func, **a))
@@ -116,11 +128,11 @@ def multiprocess(
 
                 for f in futures:
                     f.cancel()
-                    progress.update(canceling, advance=1.0)
+                    progress.update(canceling, advance=1.0, refresh=True)
 
                 for f in done:
                     res = f.result()
                     if onResult is not None:
                         onResult(res, progress)
 
-                    progress.update(collecting, advance=1.0)
+                    progress.update(collecting, advance=1.0, refresh=True)
