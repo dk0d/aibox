@@ -1,28 +1,37 @@
+# %%
 import concurrent.futures
 import itertools
 import os
 import sys
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from typing import Callable, List, Optional
+from typing import Callable, Any
+import time
 
-import tqdm
+from pandas.io.formats.printing import justify
+
+from aibox.logger import get_logger
+from rich.progress import BarColumn, Progress, TextColumn, TimeRemainingColumn, TimeElapsedColumn
 
 
 def _initializer_mute():
     sys.stdout = open(os.devnull, "w")
 
 
+LOGGER = get_logger(__name__)
+
+
 def multiprocess(
     func,
-    kwargsList: List[dict],
+    kwargsList: list[dict],
     poolMode="process",  # or 'thread'
-    onResult: Optional[Callable] = None,
+    onResult: Callable[[Any, Progress | None], None] | None = None,
     maxJobs=400,
     maxWorkers=None,
     desc="Processing",
     mute=True,
     showProg=True,
     stopAllOnException=False,
+    transient=False,
 ):
     """
     Multi-processing helper for handling job submission and
@@ -40,10 +49,23 @@ def multiprocess(
         showProg (bool): flag whether to show progess bar
 
     """
-    if showProg:
-        prog = tqdm.tqdm(total=len(kwargsList), desc=desc)
-    else:
-        prog = None
+    # prog = track(total=len(kwargsList), description=desc)
+
+    progress = Progress(
+        TextColumn("[bold blue][progress.description]{task.description}", justify="right"),
+        "•",
+        BarColumn(bar_width=None),
+        "•",
+        "[progress.percentage]{task.percentage:>3.1f}%",
+        "•",
+        TextColumn("{task.completed:.0f}/{task.total:.0f}", justify="right"),
+        "•",
+        TimeRemainingColumn(),
+        "(",
+        TimeElapsedColumn(),
+        ")",
+    )
+    task = progress.add_task(desc, start=True, total=len(kwargsList), visible=showProg)
 
     if poolMode == "process":
         ProcessPool = ProcessPoolExecutor
@@ -59,42 +81,55 @@ def multiprocess(
 
     iterArgs = iter(kwargsList)
 
-    with ProcessPool(**poolKwds) as pool:
-        futures = {pool.submit(func, **a) for a in itertools.islice(iterArgs, maxJobs)}
-        done = []  # to help with graceful exit
-        try:
-            while futures:
-                done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
-                for f in done:
-                    try:
-                        res = f.result()
-                        if onResult is not None:
-                            onResult(res, prog)
-                    except Exception as e:
-                        print(e, f)
-                        if stopAllOnException:
-                            raise e
+    with progress:
+        with ProcessPool(**poolKwds) as pool:
+            # with ProcessPool(**poolKwds) as pool:
+            futures = {pool.submit(func, **a) for a in itertools.islice(iterArgs, maxJobs)}
+            done = []  # to help with graceful exit
+            try:
+                while futures:
+                    done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
+                    for f in done:
                         try:
-                            if not f.cancelled():
-                                f.cancel()
-                        except Exception:
-                            pass
+                            res = f.result()
+                            if onResult is not None:
+                                onResult(res, progress)
+                        except Exception as e:
+                            LOGGER.exception("Exception detected, cancelling all jobs...")
+                            if stopAllOnException:
+                                raise e
+                            try:
+                                if not f.cancelled():
+                                    f.cancel()
+                            except Exception:
+                                pass
 
-                    if prog is not None:
-                        prog.update()
+                        progress.update(task, advance=1.0)
 
-                for a in itertools.islice(iterArgs, len(done)):
-                    futures.add(pool.submit(func, **a))
+                    for a in itertools.islice(iterArgs, len(done)):
+                        futures.add(pool.submit(func, **a))
 
-        except KeyboardInterrupt:
-            print("\nKeyboard interrupt detected, cancelling jobs...")
+            except KeyboardInterrupt:
+                LOGGER.exception("\nKeyboard interrupt detected, cancelling jobs...")
 
-            for f in tqdm.tqdm(futures, desc="Cancelling jobs"):
-                f.cancel()
+                canceling = progress.add_task("Cancelling jobs", total=len(futures))
+                collecting = progress.add_task("Collecting results", total=len(done))
 
-            for f in tqdm.tqdm(done, desc="Collecting results"):
-                res = f.result()
-                if onResult is not None:
-                    onResult(res, prog)
-                if prog is not None:
-                    prog.update()
+                for f in futures:
+                    f.cancel()
+                    progress.update(canceling, advance=1.0)
+
+                for f in done:
+                    res = f.result()
+                    if onResult is not None:
+                        onResult(res, progress)
+
+                    progress.update(collecting, advance=1.0)
+
+
+def sleeeper(a, b):
+    time.sleep(2)
+
+
+if __name__ == "__main__":
+    multiprocess(sleeeper, [{"a": 1, "b": 2} for i in range(100)], maxJobs=10, desc="Sleeping")
