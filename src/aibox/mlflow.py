@@ -151,6 +151,7 @@ def load_config_from_run(run: Run, tracking_uri: str, config_file="config.yml", 
 
 def get_latest(
     tracking_uri: str,
+    *,
     experiment_name=None,
     run_name=None,
     run_id=None,
