@@ -100,8 +100,22 @@ def load_ckpt_from_run(
     tracking_uri: str,
     alias="best",
     new_root=None,
+    init_model=True,
     **model_kwargs,
 ) -> tuple[Config, L.LightningModule]:
+    """
+    Loads the model from the run_id or run object
+
+    Args:
+        run (Run | str): run object or run_id
+        tracking_uri (str): [description]
+        alias (str, optional): [description]. Defaults to "best".
+        new_root ([type], optional): [description]. Defaults to None.
+        init_model (bool, optional): whether or not to call `load_from_checkpoint()`. If False,
+            will just load the raw ckpt file with `torch.load()`
+            Defaults to True.
+        **model_kwargs: [description]. extra params passed to model initializer. Defaults to {}.
+    """
     if isinstance(run, str):  # is run_id
         client = mlflow.MlflowClient(tracking_uri=tracking_uri)
         run = client.get_run(run_id=run)
@@ -115,13 +129,18 @@ def load_ckpt_from_run(
     checkpoints = get_mlflow_checkpoints(Path(model_dir))
     best = [c.path for c in checkpoints if alias in c.aliases][-1]
     # try:
-    if not hasattr(config, "model"):
-        raise Exception("Config has no model key")
-    model_cfg = getattr(config, "model")
-    Model: L.LightningModule = class_from_string(derive_classpath(model_cfg))
-    device = get_device()
-    model_kwargs.update(map_location=device)
-    model = Model.load_from_checkpoint(best, **derive_args(model_cfg, **model_kwargs))
+    if init_model:
+        if not hasattr(config, "model"):
+            raise Exception("Config has no model key")
+        model_cfg = getattr(config, "model")
+        Model: L.LightningModule = class_from_string(derive_classpath(model_cfg))
+        device = get_device()
+        model_kwargs.update(map_location=device)
+        model = Model.load_from_checkpoint(best, **derive_args(model_cfg, **model_kwargs))
+    else:
+        import torch
+
+        model = torch.load(best)
     # except Exception as e:
     # raise Exception(f"Unable to load model for run: {run.info.run_id}\n{e}")
     return config, model
@@ -152,13 +171,34 @@ def load_config_from_run(run: Run, tracking_uri: str, config_file="config.yml", 
 def get_latest(
     tracking_uri: str,
     *,
-    experiment_name=None,
-    run_name=None,
-    run_id=None,
-    filter_string=None,
-    registry_uri=None,
-    new_root=None,
-):
+    experiment_name: str | None = None,
+    run_name: str | None = None,
+    run_id: str | None = None,
+    filter_string: str | None = None,
+    registry_uri: str | None = None,
+    init_model: bool = True,
+    new_root: str | Path | None = None,
+) -> tuple[Config, L.LightningModule]:
+    """
+    Get the latest run from MLFlow and loads the associated config and model given
+    the experiment name, run_name, or run_id, or some combination thereof.
+
+    An MLFlow `filter_string` can be used to filter runs.
+    See []() for more
+
+    Args:
+        tracking_uri (str): [description]
+        experiment_name (str, optional): [description]. Defaults to None.
+        run_name (str, optional): [description]. Defaults to None.
+        run_id (str, optional): [description]. Defaults to None.
+        filter_string (str, optional): [description]. Defaults to None.
+        registry_uri (str, optional): [description]. Defaults to None.
+        init_model (bool): Whether to initialize the model or just return the ckpt file. Defaults to True.
+        new_root (str | Path, optional): [description]. Defaults to None.
+
+    Returns:
+        tuple[Config, L.LightningModule]: configuration and model used in run
+    """
     run: Run | str | None = None
     if run_name is not None:
         lookup = ("name", run_name)
@@ -183,6 +223,7 @@ def get_latest(
     config, model = load_ckpt_from_run(
         run,
         tracking_uri,
+        init_model=init_model,
         new_root=new_root,
     )
     return config, model
