@@ -43,14 +43,18 @@ class AIBoxCLI:
 
     def setup_default_args(self):
         self.parser.add_argument(
-            "-e",
-            "--exp_name",
+            "-e",  # expe
+            "-n",
+            "--name",
+            dest="name",
             type=str,
+            help="Name of the experiment, overall name of the configuration",
         )
         self.parser.add_argument(
             "-m",
             "--model_name",
             type=str,
+            help="Name of the model, used to load model config",
         )
         self.parser.add_argument(
             "-c",
@@ -209,7 +213,7 @@ class AIBoxCLI:
 
         # model_path, model_config = Path(cli_config.models_dir) / f"{cli_config.model_name}.toml", None
         # model_defaults_path, model_defaults_config = model_path.parent / "default.toml", None
-        # exp_path, exp_config = Path(cli_config.exp_dir) / f"{cli_config.exp_name}.toml", None
+        # exp_path, exp_config = Path(cli_config.exp_dir) / f"{cli_config.name}.toml", None
         # exp_defaults_path, exp_defaults_config = exp_path.parent / "default.toml", None
 
         # Load global default config
@@ -230,8 +234,8 @@ class AIBoxCLI:
         # Load Experiment Config
         _, exp_config = self._resolve_config_from_root_name(
             root=cli_config.exp_dir,
-            name=cli_config.exp_name,
-            verbose=cli_config.exp_name is not None,
+            name=cli_config.name,
+            verbose=cli_config.name is not None,
         )
 
         # Load overriding config if given

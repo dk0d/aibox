@@ -4,9 +4,13 @@ from typing import TypeAlias
 from typing_extensions import Self
 from omegaconf import DictConfig, OmegaConf
 
-from .utils import as_path
+from .utils import as_path, as_uri
 
 OmegaConf.register_new_resolver("as_path", as_path)
+OmegaConf.register_new_resolver("as_uri", as_uri)
+OmegaConf.register_new_resolver("increment", lambda x: x + 1)
+OmegaConf.register_new_resolver("decrement", lambda x: x - 1)
+OmegaConf.register_new_resolver("add", lambda *nums: sum(nums))
 
 Config: TypeAlias = DictConfig | dict
 
