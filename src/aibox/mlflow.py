@@ -6,6 +6,7 @@ import mlflow
 import yaml
 from mlflow.entities import Run
 from mlflow.store.entities.paged_list import PagedList
+from aibox.logger import get_logger
 
 from .config import (
     Config,
@@ -15,6 +16,9 @@ from .config import (
     derive_classpath,
 )
 from .torch.utils import get_device
+
+
+LOGGER = get_logger(__name__)
 
 
 class MLFlowHelper:
@@ -85,19 +89,24 @@ class MLFlowHelper:
             runs = list(
                 self.search_runs(
                     max_results=1,
+                    run_name=run_name,
                     experiment_name=experiment_name,
                     filter_string=filter_string,
                 )
             )
             if len(runs) == 1:
                 run = runs[0]
-                print(f"Found run: {run.info.run_name} ({run.info.run_id})")
+                LOGGER.info(f"Found run: {run.info.run_name} ({run.info.run_id})")
+            else:
+                LOGGER.warning(f"Found more than 1 run with {lookup[0]}: {lookup[1]}")
 
         elif run_id is not None:
             lookup = ("id", run_id)
             run = run_id
         else:
-            raise Exception("One of run_name or run_id must be specified")
+            msg = "One of run_name or run_id must be specified"
+            LOGGER.exception(msg)
+            raise Exception(msg)
 
         if run is None:
             raise Exception(f"Unknown run {lookup[0]}: {lookup[1]}")
