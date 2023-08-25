@@ -6,13 +6,13 @@ import mlflow
 import yaml
 from mlflow.entities import Run
 from mlflow.store.entities.paged_list import PagedList
+from aibox.logger import get_logger
 
 from aibox.logger import get_logger
 
 from .config import (
     Config,
     class_from_string,
-    config_from_dotlist,
     config_from_path,
     derive_args,
     derive_classpath,
@@ -22,176 +22,230 @@ from .torch.utils import get_device
 LOGGER = get_logger(__name__)
 
 
-def search_runs(
-    tracking_uri: str,
-    registry_uri: str | None = None,
-    *,
-    run_name=None,
-    experiment_ids: list[str] | None = None,
-    experiment_name: str | None = None,
-    max_results=1,
-    filter_string: str | None = None,
-    order_by: list[str] | None = None,
-    page_token: str | None = None,  # get from paged list
-) -> PagedList[Run]:
-    """Search runs in MLFlow
-    for more on search params see: https://mlflow.org/docs/latest/search-runs.html
-
-    Args:
-        tracking_uri (str): [description]
-        registry_uri (str, optional): [description]. Defaults to None.
-        run_name ([type], optional): [description]. Defaults to None.
-        experiment_ids (list[str], optional): [description]. Defaults to None.
-        max_results (int, optional): [description]. Defaults to 1.
-        filter_string (str, optional): [description]. Defaults to None.
-        order_by (list[str], optional): [description]. Defaults to None.
-        page_token (str, optional): get from PagedList. Defaults to None.
-    """
-    client: mlflow.MlflowClient = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
-
-    if experiment_ids is None:
-        exp_filter_string = None if experiment_name is None else f"attributes.name LIKE '%{experiment_name}%'"
-        experiment_ids = [e.experiment_id for e in client.search_experiments(filter_string=exp_filter_string)]
-
-    filters = [(f"attributes.run_name LIKE '%{run_name}%'" if run_name is not None else None)]
-
-    if filter_string is not None:
-        filters.append(filter_string)
-
-    filters = [f for f in filters if f is not None]
-
-    filter_string = " AND ".join(f for f in filters if f is not None) if len(filters) > 0 else ""
-
-    order_by = order_by if order_by is not None else ["metrics.`test/loss` DESC"]
-
-    runs = client.search_runs(
-        experiment_ids,
-        filter_string=filter_string,
-        max_results=max_results,
-        order_by=["metrics.`test/loss` DESC"],
-        page_token=page_token,
-    )
-
-    return runs
+LOGGER = get_logger(__name__)
 
 
-def get_runs(
-    tracking_uri: str,
-    registry_uri: str | None = None,
-    *,
-    run_name=None,
-    experiment_ids: list[str] | None = None,
-    max_results=1000,
-    filter_string: str | None = None,
-    order_by: list[str] | None = None,
-    page_token: str | None = None,  # get from paged list
-) -> PagedList[Run]:
-    runs = search_runs(
+class MLFlowHelper:
+    def __init__(
+        self,
         tracking_uri,
-        registry_uri,
-        run_name=run_name,
-        experiment_ids=experiment_ids,
-        max_results=max_results,
-        filter_string=filter_string,
-        order_by=order_by,
-        page_token=page_token,
-    )
-    return runs
+        registry_uri=None,
+    ):
+        self.tracking_uri = tracking_uri
+        self.registry_uri = registry_uri
+        self.client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
 
+    def get_run(self, run_id):
+        return self.client.get_run(run_id=run_id)
 
-def load_ckpt_from_run(
-    run: Run | str,
-    tracking_uri: str,
-    alias="best",
-    new_root=None,
-    **model_kwargs,
-) -> tuple[Config, L.LightningModule]:
-    if isinstance(run, str):  # is run_id
-        client = mlflow.MlflowClient(tracking_uri=tracking_uri)
-        run = client.get_run(run_id=run)
-
-    model_dir = mlflow.artifacts.download_artifacts(
-        run_id=run.info.run_id,
-        artifact_path="model",
-        tracking_uri=tracking_uri,
-    )
-    config = load_config_from_run(run, tracking_uri, new_root=new_root)
-    checkpoints = get_mlflow_checkpoints(Path(model_dir))
-    best = [c.path for c in checkpoints if alias in c.aliases][-1]
-    # try:
-    if not hasattr(config, "model"):
-        raise Exception("Config has no model key")
-    model_cfg = getattr(config, "model")
-    Model: L.LightningModule = class_from_string(derive_classpath(model_cfg))
-    device = get_device()
-    model_kwargs.update(map_location=device)
-    model = Model.load_from_checkpoint(best, **derive_args(model_cfg, **model_kwargs))
-    # except Exception as e:
-    # raise Exception(f"Unable to load model for run: {run.info.run_id}\n{e}")
-    return config, model
-
-
-def load_config_from_run(run: Run, tracking_uri: str, config_file="config.yml", new_root=None):
-    from .utils import resolve_paths
-
-    # try:
-    # param_config = config_from_dotlist([f"{k}={v}" for k, v in run.data.params.items()])
-    # return param_config
-    # except Exception:
-    try:
-        config_path = mlflow.artifacts.download_artifacts(
-            run_id=run.info.run_id,
-            artifact_path=config_file,
-            tracking_uri=tracking_uri,
+    def get_runs(
+        self,
+        run_name=None,
+        experiment_ids: list[str] | None = None,
+        max_results=1000,
+        filter_string: str | None = None,
+        order_by: list[str] | None = None,
+        page_token: str | None = None,  # get from paged list
+    ) -> PagedList[Run]:
+        runs = self.search_runs(
+            run_name=run_name,
+            experiment_ids=experiment_ids,
+            max_results=max_results,
+            filter_string=filter_string,
+            order_by=order_by,
+            page_token=page_token,
         )
-        config = config_from_path(config_path)
+        return runs
 
-        if new_root is not None:
-            resolve_paths(config, new_root)
-        return config
-    except Exception as e:
-        raise Exception(f"Error loading config for run ID: {run.info.run_id} - {e}")
+    def get_latest(
+        self,
+        experiment_name: str | None = None,
+        run_name: str | None = None,
+        run_id: str | None = None,
+        filter_string: str | None = None,
+        init_model: bool = True,
+        new_root: str | Path | None = None,
+        return_run: bool = False,
+    ) -> tuple[Config, L.LightningModule] | tuple[Config, L.LightningModule, Run]:
+        """
+        Get the latest run from MLFlow and loads the associated config and model given
+        the experiment name, run_name, or run_id, or some combination thereof.
 
+        An MLFlow `filter_string` can be used to filter runs.
+        See []() for more
 
-def get_latest(
-    tracking_uri: str,
-    experiment_name=None,
-    run_name=None,
-    run_id=None,
-    filter_string=None,
-    registry_uri=None,
-    new_root=None,
-    return_run=False,
-):
-    run: Run | str | None = None
-    if run_name is not None:
-        lookup = ("name", run_name)
-        runs = list(
-            search_runs(
-                tracking_uri, registry_uri, max_results=1, experiment_name=experiment_name, filter_string=filter_string
+        Args:
+            experiment_name (str, optional): [description]. Defaults to None.
+            run_name (str, optional): [description]. Defaults to None.
+            run_id (str, optional): [description]. Defaults to None.
+            filter_string (str, optional): [description]. Defaults to None.
+            registry_uri (str, optional): [description]. Defaults to None.
+            init_model (bool): Whether to initialize the model or just return the ckpt file. Defaults to True.
+            new_root (str | Path, optional): [description]. Defaults to None.
+            return_run (bool): whether to return the run object. Defaults to False.
+
+        Returns:
+            tuple[Config, L.LightningModule]: configuration and model used in run
+        """
+        run: Run | str | None = None
+        if run_name is not None:
+            lookup = ("name", run_name)
+            runs = list(
+                self.search_runs(
+                    max_results=1,
+                    run_name=run_name,
+                    experiment_name=experiment_name,
+                    filter_string=filter_string,
+                )
             )
+            if len(runs) == 1:
+                run = runs[0]
+                LOGGER.info(f"Found run: {run.info.run_name} ({run.info.run_id})")
+            else:
+                LOGGER.warning(f"Found more than 1 run with {lookup[0]}: {lookup[1]}")
+
+        elif run_id is not None:
+            lookup = ("id", run_id)
+            run = run_id
+        else:
+            msg = "One of run_name or run_id must be specified"
+            LOGGER.exception(msg)
+            raise Exception(msg)
+
+        if run is None:
+            raise Exception(f"Unknown run {lookup[0]}: {lookup[1]}")
+
+        config, model = self.load_ckpt_from_run(
+            run,
+            init_model=init_model,
+            new_root=new_root,
         )
-        if len(runs) == 1:
-            run = runs[0]
-            LOGGER.info(f"Found run: {run.info.run_name} ({run.info.run_id})")
+        if return_run:
+            if isinstance(run, str):
+                run = mlflow.get_run(run)
+            return config, model, run
+        return config, model
 
-    elif run_id is not None:
-        lookup = ("id", run_id)
-        run = run_id
-    else:
-        raise Exception("One of run_name or run_id must be specified")
+    def load_ckpt_from_run(
+        self,
+        run: Run | str,
+        alias="best",
+        new_root=None,
+        init_model=True,
+        **model_kwargs,
+    ) -> tuple[Config, L.LightningModule]:
+        """
+        Loads the model from the run_id or run object
 
-    if run is None:
-        raise Exception(f"Unknown run {lookup[0]}: {lookup[1]}")
+        Args:
+            run (Run | str): run object or `run_id`
+            alias (str, optional): [description]. Defaults to "best".
+            new_root ([type], optional): [description]. Defaults to None.
+            init_model (bool, optional): whether or not to call `load_from_checkpoint()`. If False,
+                will just load the raw ckpt file with `torch.load()`
+                Defaults to True.
+            **model_kwargs: [description]. extra params passed to model initializer. Defaults to {}.
+        """
+        if isinstance(run, str):  # is run_id
+            run = self.client.get_run(run_id=run)
 
-    config, model = load_ckpt_from_run(
-        run,
-        tracking_uri,
-        new_root=new_root,
-    )
-    if return_run:
-        return config, model, run
-    return config, model
+        model_dir = mlflow.artifacts.download_artifacts(
+            run_id=run.info.run_id,
+            artifact_path="model",
+            tracking_uri=self.tracking_uri,
+        )
+        config = self.load_config_from_run(run, new_root=new_root)
+        checkpoints = get_mlflow_checkpoints(Path(model_dir))
+        best = [c.path for c in checkpoints if alias in c.aliases][-1]
+        # try:
+        if init_model:
+            if not hasattr(config, "model"):
+                raise Exception("Config has no model key")
+            model_cfg = getattr(config, "model")
+            Model: L.LightningModule = class_from_string(derive_classpath(model_cfg))
+            device = get_device()
+            model_kwargs.update(map_location=device)
+            model = Model.load_from_checkpoint(best, **derive_args(model_cfg, **model_kwargs))
+        else:
+            import torch
+
+            model = torch.load(best)
+        # except Exception as e:
+        # raise Exception(f"Unable to load model for run: {run.info.run_id}\n{e}")
+        return config, model
+
+    def load_config_from_run(
+        self,
+        run: Run,
+        config_file="config.yml",
+        new_root=None,
+    ):
+        from .utils import resolve_paths
+
+        # try:
+        # param_config = config_from_dotlist([f"{k}={v}" for k, v in run.data.params.items()])
+        # return param_config
+        # except Exception:
+        try:
+            config_path = mlflow.artifacts.download_artifacts(
+                run_id=run.info.run_id,
+                artifact_path=config_file,
+                tracking_uri=self.tracking_uri,
+            )
+            config = config_from_path(config_path)
+
+            if new_root is not None:
+                resolve_paths(config, new_root)
+            return config
+        except Exception as e:
+            raise Exception(f"Error loading config for run ID: {run.info.run_id} - {e}")
+
+    def search_runs(
+        self,
+        run_name=None,
+        experiment_ids: list[str] | None = None,
+        experiment_name: str | None = None,
+        max_results=1,
+        filter_string: str | None = None,
+        order_by: list[str] | None = None,
+        page_token: str | None = None,  # get from paged list
+    ) -> PagedList[Run]:
+        """Search runs in MLFlow
+        for more on search params see: https://mlflow.org/docs/latest/search-runs.html
+
+        Args:
+            run_name ([type], optional): [description]. Defaults to None.
+            experiment_ids (list[str], optional): [description]. Defaults to None.
+            max_results (int, optional): [description]. Defaults to 1.
+            filter_string (str, optional): [description]. Defaults to None.
+            order_by (list[str], optional): [description]. Defaults to None.
+            page_token (str, optional): get from PagedList. Defaults to None.
+        """
+
+        if experiment_ids is None:
+            exp_filter_string = None if experiment_name is None else f"attributes.name LIKE '%{experiment_name}%'"
+            experiment_ids = [e.experiment_id for e in self.client.search_experiments(filter_string=exp_filter_string)]
+
+        filters = [(f"attributes.run_name LIKE '%{run_name}%'" if run_name is not None else None)]
+
+        if filter_string is not None:
+            filters.append(filter_string)
+
+        filters = [f for f in filters if f is not None]
+
+        filter_string = " AND ".join(f for f in filters if f is not None) if len(filters) > 0 else ""
+
+        order_by = order_by if order_by is not None else ["metrics.`test/loss` DESC"]
+
+        runs = self.client.search_runs(
+            experiment_ids,
+            filter_string=filter_string,
+            max_results=max_results,
+            order_by=["metrics.`test/loss` DESC"],
+            page_token=page_token,
+        )
+
+        return runs
 
 
 @dataclass

@@ -226,6 +226,8 @@ def config_to_dotlist(config: Config, delimiter="."):
     """
     Flattens a config to a dictionary with dot-separated keys
     """
+    if isinstance(config, dict):
+        config = config_from_dict(config)
     return flatten_dict(dict(**OmegaConf.to_container(config, resolve=True, enum_to_str=True)), delimiter=delimiter)
 
 
