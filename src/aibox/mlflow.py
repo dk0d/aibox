@@ -7,6 +7,8 @@ import yaml
 from mlflow.entities import Run
 from mlflow.store.entities.paged_list import PagedList
 
+from aibox.logger import get_logger
+
 from .config import (
     Config,
     class_from_string,
@@ -16,6 +18,8 @@ from .config import (
     derive_classpath,
 )
 from .torch.utils import get_device
+
+LOGGER = get_logger(__name__)
 
 
 def search_runs(
@@ -157,6 +161,7 @@ def get_latest(
     filter_string=None,
     registry_uri=None,
     new_root=None,
+    return_run=False,
 ):
     run: Run | str | None = None
     if run_name is not None:
@@ -168,7 +173,7 @@ def get_latest(
         )
         if len(runs) == 1:
             run = runs[0]
-            print(f"Found run: {run.info.run_name} ({run.info.run_id})")
+            LOGGER.info(f"Found run: {run.info.run_name} ({run.info.run_id})")
 
     elif run_id is not None:
         lookup = ("id", run_id)
@@ -184,6 +189,8 @@ def get_latest(
         tracking_uri,
         new_root=new_root,
     )
+    if return_run:
+        return config, model, run
     return config, model
 
 
@@ -254,7 +261,7 @@ def rewrite_artifact_path(metadata_file, pwd, artifact_path_key):
         y[artifact_path_key] = f"file://{pwd}"
 
     with open(metadata_file, "w") as f:
-        print(yaml.dump(y, default_flow_style=False, sort_keys=False))
+        LOGGER.info(yaml.dump(y, default_flow_style=False, sort_keys=False))
         yaml.dump(y, f, default_flow_style=False, sort_keys=False)
 
 
@@ -267,7 +274,7 @@ def fix_mlflow_artifact_paths(mlflow_root: Path):
             rewrite_artifact_path(metadata_file, experiment_folder, artifact_path_key="artifact_location")
         for run_folder in experiment_folder.iterdir():
             metadata_file = run_folder / "meta.yaml"
-            print(run_folder)
+            LOGGER.info(run_folder)
 
             # Fix run metadata
             if metadata_file.exists():

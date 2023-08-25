@@ -6,11 +6,19 @@ from omegaconf import DictConfig, OmegaConf
 
 from .utils import as_path, as_uri
 
+
+def basename(path: str) -> str:
+    import re
+
+    return re.split(r"[\./]", path)[-1]
+
+
 OmegaConf.register_new_resolver("as_path", as_path)
 OmegaConf.register_new_resolver("as_uri", as_uri)
 OmegaConf.register_new_resolver("increment", lambda x: x + 1)
 OmegaConf.register_new_resolver("decrement", lambda x: x - 1)
 OmegaConf.register_new_resolver("add", lambda *nums: sum(nums))
+OmegaConf.register_new_resolver("basename", basename)
 
 Config: TypeAlias = DictConfig | dict
 
@@ -122,9 +130,13 @@ def config_from_dotlist(dotlist: list[str]):
 def config_to_dict(config: Config) -> dict:
     if isinstance(config, dict):
         return dict(**config)
-    container = OmegaConf.to_container(config, resolve=True)
+    container = OmegaConf.to_container(config, resolve=True, enum_to_str=True)
     assert isinstance(container, dict)
     return container
+
+
+def config_select(config, key, **kwargs):
+    return OmegaConf.select(config, key, **kwargs)
 
 
 def config_update(config, key, value, **kwargs):
@@ -222,16 +234,36 @@ def config_dump(config: Config, path: Path):
 
     with path.open("w") as fp:
         c_dict = config_to_dict(config)
+        c_dict = manage_invalid_values(c_dict)
         tomldump(c_dict, fp)
 
 
-def remove_any_none_values(config: Config):
+def manage_invalid_values(config: Config) -> dict:
     """
     Recursively removes any None values from the config while keeping structure
+    and converts Path objects to strings
+
+    Args:
+        config (Config): Config to process
+
+    Returns:
+        Config: Processed dict
+
     """
+
+    def _convert_types(value):
+        if isinstance(value, Path):
+            return str(value)
+        return value
+
     if isinstance(config, Config):
         config = config_to_dict(config)
-    out = {k: (remove_any_none_values(v) if isinstance(v, Config) else v) for k, v in config.items() if v is not None}
+    out = {
+        k: (manage_invalid_values(v) if isinstance(v, Config) else _convert_types(v))
+        for k, v in config.items()
+        if v is not None  # Remove None Values
+    }
+
     return out
 
 
@@ -246,7 +278,7 @@ def _configs_to_toml(configs, source_dir: Path, out_dir: Path, name_fn=None):
         outPath = (out_dir / relPath).with_suffix(".toml")
         outPath.parent.mkdir(parents=True, exist_ok=True)
         with outPath.open("w") as fp:
-            tomldump(remove_any_none_values(y), fp)
+            tomldump(manage_invalid_values(y), fp)
 
 
 def json_to_toml(source_dir: Path, out_dir: Path, name_fn=None):

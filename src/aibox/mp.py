@@ -6,7 +6,7 @@ import sys
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Any, Callable
 
-from rich.console import Console
+
 from rich.progress import (
     BarColumn,
     Progress,
