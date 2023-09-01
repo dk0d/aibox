@@ -40,6 +40,7 @@ class AIBoxCLI:
         self.parser = ArgumentParser()
         self.setup_default_args()
         self.linked = []
+        self.config_dirs = []
 
     def setup_default_args(self):
         self.parser.add_argument(
@@ -59,7 +60,9 @@ class AIBoxCLI:
         self.parser.add_argument(
             "-c",
             "--config",
-            type=str,
+            action=PathAction,
+            default=None,
+            help="Path to any config file to override experiment config",
         )
         self.parser.add_argument(
             "-cd",
@@ -174,11 +177,14 @@ class AIBoxCLI:
     def _parse_cli_args(self, args=None):
         args, unk = self.parser.parse_known_args(args)
 
-        if args.exp_dir is None:
-            args.exp_dir = args.config_dir / "experiments"
+        try:
+            if args.exp_dir is None:
+                args.exp_dir = args.config_dir / "experiments"
 
-        if args.models_dir is None:
-            args.models_dir = args.config_dir / "models"
+            if args.models_dir is None:
+                args.models_dir = args.config_dir / "models"
+        except Exception as e:
+            pass
 
         cli_config = self._args_to_config(args)
 
@@ -187,7 +193,7 @@ class AIBoxCLI:
 
         return cli_config
 
-    def _resolve_config_from_root_name(self, root: Path | str, name: str, verbose=False):
+    def resolve_config_from_root_name(self, root: Path | str, name: str, verbose=False):
         root = Path(root)
 
         # Look for root/name directory first
@@ -225,14 +231,14 @@ class AIBoxCLI:
         )
 
         # Load Model Config
-        _, model_config = self._resolve_config_from_root_name(
+        _, model_config = self.resolve_config_from_root_name(
             root=cli_config.models_dir,
             name=cli_config.model_name,
             verbose=cli_config.model_name is not None,
         )
 
         # Load Experiment Config
-        _, exp_config = self._resolve_config_from_root_name(
+        _, exp_config = self.resolve_config_from_root_name(
             root=cli_config.exp_dir,
             name=cli_config.name,
             verbose=cli_config.name is not None,
