@@ -244,6 +244,12 @@ class MLFlowHelper:
 
         return runs
 
+    def log_artifact(self, run_id, local_path, artifact_path=None):
+        self.client.log_artifact(run_id, local_path, artifact_path=artifact_path)
+
+    def log_artifacts(self, run_id, local_dir, artifact_dir=None):
+        self.client.log_artifacts(run_id, local_dir, artifact_path=artifact_dir)
+
 
 @dataclass
 class MLFlowCheckpointEntry:
