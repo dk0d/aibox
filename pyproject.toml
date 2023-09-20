@@ -18,6 +18,8 @@ dependencies = [
   "mlflow>=2.0.0",
   "numpy>=1.23.2,<1.24.0",
   "einops>=0.6.1",
+  "lightning>=2.0.8",
+  # "ffcv>=1.0.2",
 ]
 dynamic = ["version"]
 requires-python = ">=3.10,<4.0"
@@ -43,7 +45,10 @@ docs = [
   "mkdocs-gen-files>=0.5.0",
   "mike>=1.1.2",
 ]
-torch = ["torch", "torchvision", "torchaudio", "lightning>=2.0.0"]
+torch = ["torch>=2.0.1", "torchvision", "torchaudio", "lightning>=2.0.8"]
+
+# Doesn't seem to like installing on apple silicon or through pip 
+ffcv = ["ffcv>=1.0.2"]
 
 [tool.hatch.version]
 source = 'regex_commit'
