@@ -63,6 +63,8 @@ def init_logger(config, log_hyperparams=True) -> Logger | None:
                 LOGGER.info(f"Experiment Name: {logger.experiment_name}")
             if hasattr(logger, "run_id"):
                 LOGGER.info(f"Run ID: {logger.run_id}")
+            if hasattr(logger, "run_name"):
+                LOGGER.info(f"Run Name: {logger.run_name}")
             return logger
         except Exception as e:  # TODO: Better handling of when logger init fails
             LOGGER.error(f"Failed to initialize logger: {config.logging}")
