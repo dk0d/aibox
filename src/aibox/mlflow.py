@@ -6,18 +6,16 @@ import mlflow
 import yaml
 from mlflow.entities import Run
 from mlflow.store.entities.paged_list import PagedList
-from aibox.logger import get_logger
 
-
-from .config import (
+from aibox.config import (
     Config,
     class_from_string,
     config_from_path,
     derive_args,
     derive_classpath,
 )
-from .torch.utils import get_device
-
+from aibox.logger import get_logger
+from aibox.torch.utils import get_device
 
 LOGGER = get_logger(__name__)
 

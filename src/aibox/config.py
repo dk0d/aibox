@@ -1,10 +1,11 @@
 import importlib
 from pathlib import Path
 from typing import TypeAlias
-from typing_extensions import Self
-from omegaconf import DictConfig, OmegaConf
 
-from .utils import as_path, as_uri
+from omegaconf import DictConfig, OmegaConf
+from typing_extensions import Self
+
+from aibox.utils import as_path, as_uri
 
 
 def basename(path: str) -> str:
@@ -24,14 +25,6 @@ Config: TypeAlias = DictConfig | dict
 
 SUPPORTED_INIT_TARGET_KEYS = ["__classpath__", "__class_path__", "__target__", "__init_target__"]
 SUPPORTED_INIT_ARGS_KEYS = ["__args__", "__kwargs__", "__init_args__", "__init_kwargs__"]
-
-
-def is_list(x) -> bool:
-    return OmegaConf.is_list(x) or isinstance(x, list)
-
-
-def is_dict(x) -> bool:
-    return OmegaConf.is_dict(x) or isinstance(x, dict)
 
 
 def print_config(config):
