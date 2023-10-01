@@ -33,6 +33,15 @@ class MLFlowHelper:
     def get_run(self, run_id):
         return self.client.get_run(run_id=run_id)
 
+    def experiments(self):
+        return [e for e in self.client.search_experiments() if e.name != "Default"]
+
+    def experiment_by_name(self, name):
+        return self.client.get_experiment_by_name(name)
+
+    def experiment_by_id(self, id):
+        return self.client.get_experiment(id)
+
     def get_runs(
         self,
         run_name=None,
@@ -194,6 +203,20 @@ class MLFlowHelper:
             return config
         except Exception as e:
             raise Exception(f"Error loading config for run ID: {run.info.run_id} - {e}")
+
+    def search_experiments(
+        self,
+        max_results: int | None = 1000,
+        filter_string: str | None = None,
+        order_by: list[str] | None = None,
+        page_token=None,
+    ):
+        return self.client.search_experiments(
+            filter_string=filter_string,
+            max_results=max_results,
+            order_by=order_by,
+            page_token=page_token,
+        )
 
     def search_runs(
         self,
