@@ -3,7 +3,6 @@ from typing import Any
 
 from omegaconf import DictConfig, OmegaConf
 
-
 from aibox.config import config_to_dotlist
 from aibox.utils import as_path
 
@@ -57,6 +56,11 @@ try:
         @rank_zero_experiment
         def log_dir(self) -> str:
             return self.experiment.tracking_uri
+
+        @property
+        @rank_zero_experiment
+        def run_name(self) -> str:
+            return self.experiment.get_run(self.run_id).info.run_name
 
         @property
         def save_dir(self) -> str | None:

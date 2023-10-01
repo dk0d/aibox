@@ -1,5 +1,7 @@
 import logging
 from logging import Logger
+from pathlib import Path
+
 from rich.logging import RichHandler
 from aibox.utils import as_path
 import datetime
@@ -42,7 +44,7 @@ def get_logger(
     logger.setLevel(logging.DEBUG)
 
     if add_file_handler:
-        log_dir = as_path(log_dir)
+        log_dir = Path(log_dir).expanduser().resolve()
         log_dir.mkdir(parents=True, exist_ok=True)
         log_path = log_dir / name
         file_handler = logging.FileHandler(log_path.with_suffix(".log").as_posix())

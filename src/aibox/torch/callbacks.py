@@ -10,9 +10,9 @@ from mlflow.client import MlflowClient
 from PIL import Image
 from torch.utils.tensorboard.writer import SummaryWriter
 
+from aibox.torch.image import interlace_images
+from aibox.torch.logging import CombinedLogger
 from aibox.utils import nearest_square_grid
-
-from .logging import CombinedLogger
 
 
 class InputMonitor(L.Callback):
@@ -177,22 +177,6 @@ class LogImagesCallback(L.Callback):
             out += f"_{k}"
         return out
 
-    @staticmethod
-    def _interlace_images(images: list[torch.Tensor], maxImages: int = 8) -> torch.Tensor:
-        """
-        assumes image tensors are of shape (batch, channels, height, width)
-
-        takes list of images and interlaces them into a single tensor of images of size
-        (batch * len(images), channels, height, width)
-
-        """
-        if len(images) == 1:
-            return images[0]
-
-        numImages = min(images[0].shape[0], maxImages)
-        logIms = [torch.stack(row, dim=0) for row in zip(*[im[:numImages].detach().cpu() for im in images])]
-        return torch.cat(logIms, dim=0)
-
     @rank_zero_only
     def _tensorboard(
         self,
@@ -319,7 +303,7 @@ class LogImagesCallback(L.Callback):
 
             if self.interlace_images:  # log all images together to single image grid
                 ncols = len(images)
-                all_images = self._interlace_images(images, self.max_images)
+                all_images = interlace_images(images, self.max_images)
                 _logger_log_images(pl_module, all_images, ncols=ncols, split=split, batch_idx=batch_idx)
             else:  # log each batch of images separately
                 for k, img in enumerate(images):

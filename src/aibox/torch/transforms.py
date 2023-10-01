@@ -2,7 +2,7 @@ try:
     import torch
     import torch.nn.functional as F
     import torchvision.transforms.functional as tvF
-    from torchvision.transforms import Compose, Lambda, ToPILImage
+    from torchvision.transforms import Compose, Lambda, ToPILImage, ToTensor
 
 except ImportError:
     print("pytorch required for these utilities")
@@ -86,6 +86,16 @@ class SpecifiedCrop(torch.nn.Module):
         i, j, h, w = self.spec
 
         return tvF.crop(img, i, j, h, w)
+
+
+class SmarterToTensor:
+    def __init__(self):
+        self.to_tensor = ToTensor()
+
+    def __call__(self, img):
+        if isinstance(img, torch.Tensor):
+            return img
+        return self.to_tensor(img)
 
 
 class ImageBlend:

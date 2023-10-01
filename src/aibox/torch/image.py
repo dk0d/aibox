@@ -13,8 +13,8 @@ import numpy as np
 from PIL import Image as PILImage
 from skimage.util import compare_images
 
-from ..utils import is_list_of
-from .transforms import ToNumpyImage
+from aibox.torch.transforms import ToNumpyImage
+from aibox.utils import is_list_of
 
 
 def is_image_list(images: list):
@@ -26,11 +26,29 @@ def is_tensor_list(images: list) -> TypeGuard[list[torch.Tensor]]:
     return all(isinstance(image, torch.Tensor) for image in images)
 
 
+def interlace_images(images: list[torch.Tensor], maxImages: int = 8):
+    """
+    assumes image tensors are of shape (batch, channels, height, width)
+
+    takes list of images and interlaces them into a single tensor of images of size
+    (batch * len(images), channels, height, width)
+
+    """
+    if len(images) == 1:
+        return images[0]
+
+    numImages = min(images[0].shape[0], maxImages)
+    logIms = [torch.stack(row, dim=0) for row in zip(*[im[:numImages].detach().cpu() for im in images])]
+    return torch.cat(logIms, dim=0)
+
+
 def display_images(
     images: list[PILImage.Image] | list[torch.Tensor] | torch.Tensor,
     n_columns=1,
     figsize=(12, 12),
     normalize=False,
+    interlace=False,
+    padding=1,
 ):
     if isinstance(images, (list, tuple)):
         if is_image_list(images):
@@ -39,10 +57,13 @@ def display_images(
             tensors = images
         else:
             raise ValueError("images must be a list of PIL Images or Tensors")
-        tensors = torch.cat(tensors, dim=0)
+        if interlace:
+            tensors = interlace_images(tensors)
+        else:
+            tensors = torch.cat(tensors, dim=0)
     else:
         tensors = images
-    image = ToPILImage()(make_grid(tensors, nrow=n_columns, padding=1, normalize=normalize))
+    image = ToPILImage()(make_grid(tensors, nrow=n_columns, padding=padding, normalize=normalize))
     plt.rcParams["figure.figsize"] = figsize
     plt.imshow(image)
     plt.axis("off")
@@ -71,8 +92,8 @@ def n_channels_to_pil_mode(n_channels: int | str) -> str:
     return "RGB"
 
 
-def tensor_to_rgb(x):
-    return torch.clamp((x + 1.0) / 2.0, min=0.0, max=1.0)
+def tensor_to_rgb(x, mean_shift=1.0, std_shift=2.0):
+    return torch.clamp((x + mean_shift) / std_shift, min=0.0, max=1.0)
 
 
 def show_tensor_image(image: torch.Tensor):

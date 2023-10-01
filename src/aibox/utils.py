@@ -4,10 +4,21 @@ from pprint import pformat
 from typing import TypeGuard, TypeVar
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from rich import print as rprint
+from aibox.logger import get_logger
 
 # import numpy as np
 
 T = TypeVar("T")
+
+LOGGER = get_logger(__name__)
+
+
+def is_list(x) -> bool:
+    return OmegaConf.is_list(x) or isinstance(x, list)
+
+
+def is_dict(x) -> bool:
+    return OmegaConf.is_dict(x) or isinstance(x, dict)
 
 
 def nearest_square_grid(num: int) -> tuple[int, int]:
@@ -92,7 +103,24 @@ def get_config_root(config):
     return paths
 
 
-def resolve_paths(config, new_root=Path.cwd()):
+def _resolve_paths(config, old_root, new_root=Path.cwd(), verbose=False):
+    for k, v in config.items():
+        if ("root" in k or "dir" in k or "path" in k) and (isinstance(v, str) or isinstance(v, Path)):
+            try:
+                p = as_path(v)
+                if p is not None and p.is_relative_to(old_root):
+                    if verbose:
+                        LOGGER.info(f"Replacing key {k}\n{p}\nwith\n{new_root / p.relative_to(old_root)}")
+                    config[k] = new_root / p.relative_to(old_root)
+            except Exception as e:
+                if verbose:
+                    LOGGER.error(f"Could not resolve path for key {k}\n{v}\n{e}")
+                pass
+        elif is_dict(v):
+            _resolve_paths(v, old_root, new_root=new_root, verbose=verbose)
+
+
+def resolve_paths(config, new_root=Path.cwd(), verbose=False):
     """Resolves the most likely root path in a config based on all keys that contain
     `root` or `dir` in their key name and replaces it with new_root
 
@@ -105,18 +133,6 @@ def resolve_paths(config, new_root=Path.cwd()):
 
     """
     from functools import reduce
-
-    def _resolve_paths(config, old_root, new_root=Path.cwd()):
-        for k, v in config.items():
-            if ("root" in k or "dir" in k) and isinstance(v, str):
-                try:
-                    p = as_path(v)
-                    if p is not None and p.is_relative_to(old_root):
-                        config[k] = new_root / p.relative_to(old_root)
-                except Exception:
-                    pass
-            elif isinstance(v, dict):
-                _resolve_paths(v, old_root, new_root=new_root)
 
     def _path_intersection(p1, p2):
         p1, p2 = as_path(p1), as_path(p2)
@@ -133,5 +149,5 @@ def resolve_paths(config, new_root=Path.cwd()):
     if len(paths) > 0:
         old_root = reduce(lambda x, y: _path_intersection(x, y), paths)
     if old_root is not None:
-        _resolve_paths(config, old_root=old_root, new_root=new_root)
+        _resolve_paths(config, old_root=old_root, new_root=new_root, verbose=verbose)
     return config
