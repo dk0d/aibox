@@ -68,6 +68,7 @@ def init_logger(config, log_hyperparams=True) -> Logger | None:
             return logger
         except Exception as e:  # TODO: Better handling of when logger init fails
             LOGGER.error(f"Failed to initialize logger: {config.logging}")
+            LOGGER.error(e, exc_info=True)
             exit(1)
     return None
 
