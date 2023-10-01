@@ -1,6 +1,7 @@
 from functools import partial
 
-from aibox.config import Config
+from aibox.config import Config, init_from_cfg
+from aibox.utils import is_dict, is_list
 
 try:
     import multiprocessing as mp
@@ -11,7 +12,6 @@ try:
     from rich import print
     from torch.utils.data import DataLoader, Dataset, IterableDataset, random_split
 
-    from ..config import init_from_cfg, is_dict, is_list
 
 except ImportError:
     print("lightning.pytorch required to import these utilities")
