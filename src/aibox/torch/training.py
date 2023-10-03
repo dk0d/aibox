@@ -129,6 +129,9 @@ def init_trainer(config):
     """
     trainerParams = dict(**config.trainer)
 
+    if "fast_dev_run" not in trainerParams:
+        trainerParams.update(fast_dev_run=config.debug)
+
     logger = init_logger(config)
 
     if logger is not None:
@@ -176,7 +179,6 @@ def init_trainer(config):
         accelerator=accelerator,
         devices="auto",
         num_sanity_val_steps=0,
-        fast_dev_run=config.debug,
         callbacks=callbacks,
         precision=32,
         profiler=profiler,
