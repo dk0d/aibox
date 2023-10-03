@@ -3,7 +3,6 @@ from logging import Logger
 from pathlib import Path
 
 from rich.logging import RichHandler
-from aibox.utils import as_path
 import datetime
 
 
