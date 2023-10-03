@@ -3,6 +3,25 @@ from logging import Logger
 from pathlib import Path
 
 from rich.logging import RichHandler
+from aibox.utils import as_path
+import datetime
+
+
+class LogTic:
+    def __init__(self, msg=None, logger=None):
+        self.start = datetime.datetime.now()
+        if logger is None:
+            self.printer = print
+        else:
+            self.printer = logger.info
+
+        if msg is not None:
+            print(msg)
+
+    def __call__(self, msg):
+        out = f"{msg} ({str(datetime.datetime.now() - self.start)} elapsed)"
+        self.printer(out)
+        self.start = datetime.datetime.now()
 
 
 def set_basic_config_rich(format="%(message)s", datefmt="[%X]"):
