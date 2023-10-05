@@ -254,8 +254,8 @@ class AIBoxCLI:
 
         config = OmegaConf.merge(
             global_defaults,
-            model_config,
             exp_config,
+            model_config,
             _config,
             cli_config,
         )
