@@ -1,5 +1,3 @@
-import argparse
-import uuid
 from typing import Any
 
 import numpy as np
@@ -14,7 +12,7 @@ from aibox.slurm.hpc import HyperOptWrapper, SlurmCluster
 # from lightning.strategies.ddp import DDPStrategy
 # from ray.tune.integration.lightning import TuneReportCallback
 from aibox.torch.training import build_cli_parser, train_and_test
-from aibox.utils import print
+from aibox.utils import is_list, print
 
 # os.environ["TUNE_DISABLE_AUTO_CALLBACK_LOGGERS"] = "1"
 
@@ -70,7 +68,7 @@ def get_tuner_type(_type, values, mode="ray"):
     else:
         tune = None
 
-    if OmegaConf.is_list(values):
+    if is_list(values):
         values = list(OmegaConf.to_container(values))
 
     match _type:
@@ -139,31 +137,31 @@ def get_tuner_type(_type, values, mode="ray"):
             raise ValueError(f"Unknown type: {_type}")
 
 
-def gather_search_spaces(config, mode="ray") -> dict[str, Any] | list[dict[str, Any]]:
-    """
-    Gather the search spaces for all hyperparameters given a configuration.
-
-    Attributes:
-        config: The configuration file.
-        mode: The mode of the tuner. Either "ray" or "ax".
-
-    Returns:
-        A dictionary of search spaces.
-    """
-    match mode:
-        case "ray":
-            return gather_search_spaces_ray(config)
-        case "ax":
-            tune_config = []
-            for s, v in config.tuner.search_spaces.items():
-                for k, v in v.items():
-                    tk = ".".join([s, "args", k])
-                    c = get_tuner_type(v["type"], v["values"], mode="ax")
-                    c["name"] = tk
-                    tune_config.append(c)
-        case _:
-            raise ValueError(f"Unknown mode: {mode}")
-    return tune_config
+# def gather_search_spaces(config, mode="ray") -> dict[str, Any] | list[dict[str, Any]]:
+#     """
+#     Gather the search spaces for all hyperparameters given a configuration.
+#
+#     Attributes:
+#         config: The configuration file.
+#         mode: The mode of the tuner. Either "ray" or "ax".
+#
+#     Returns:
+#         A dictionary of search spaces.
+#     """
+#     match mode:
+#         case "ray":
+#             return gather_search_spaces_ray(config)
+#         case "ax":
+#             tune_config = []
+#             for s, v in config.tuner.search_spaces.items():
+#                 for k, v in v.items():
+#                     tk = ".".join([s, "args", k])
+#                     c = get_tuner_type(v["type"], v["values"], mode="ax")
+#                     c["name"] = tk
+#                     tune_config.append(c)
+#         case _:
+#             raise ValueError(f"Unknown mode: {mode}")
+#     return tune_config
 
 
 def gather_search_spaces_ray(config) -> dict[str, Any]:
@@ -230,89 +228,89 @@ def tune_ray(config):
     return results
 
 
-def tune_ax(config):
-    """
-    Initialize Ax and run hyperparameter tuning.
-    Read more: [Ax Tune CNN Tutorial](https://ax.dev/tutorials/tune_cnn.html)
+# def tune_ax(config):
+#     """
+#     Initialize Ax and run hyperparameter tuning.
+#     Read more: [Ax Tune CNN Tutorial](https://ax.dev/tutorials/tune_cnn.html)
+#
+#     Note: Tuning Tags
+#
+#         Tuning also updates the tags of the runs so that all runs can be
+#         grouped together and tracked / filtered in MLFlow.
+#
+#     Tags
+#
+#     - `tune_group_id`: A unique ID for the tuning group
+#     - `tune_trial`: The trial number for the run
+#
+#     Attributes:
+#         config: A dictionary containing the configuration for the experiment.
+#
+#     """
+#
+#     # from ax.plot.contour import plot_contour
+#     # from ax.plot.trace import optimization_trace_single_method
+#     # from ax.utils.notebook.plotting import init_notebook_plotting, render
+#     from ax.service.managed_loop import optimize
+#
+#     tune_params = gather_search_spaces(config, mode="ax")
+#
+#     global trial
+#     trial = 0
+#     tune_group_id = uuid.uuid4().hex
+#     OmegaConf.update(config, "tags.tune_group_id", tune_group_id)
+#
+#     def _wrapper(_tune_config):
+#         global trial
+#         trial += 1
+#         OmegaConf.update(config, "tags.tune_trial", f"{trial}")
+#         return tune_train(_tune_config, config)
+#
+#     best_params, values, experiment, model = optimize(
+#         parameters=tune_params,
+#         evaluation_function=_wrapper,
+#         objective_name="loss",
+#         minimize=True,
+#         total_trials=3,
+#     )
+#
+#     OmegaConf.update(config, "tags.tune_trial", "best")
+#
+#     tune_train(best_params, config)
+#
+#     LOGGER.info(f"Best: {best_params}, Values: {values}, Experiment: {experiment}")
 
-    Note: Tuning Tags
 
-        Tuning also updates the tags of the runs so that all runs can be
-        grouped together and tracked / filtered in MLFlow.
-
-    Tags
-
-    - `tune_group_id`: A unique ID for the tuning group
-    - `tune_trial`: The trial number for the run
-
-    Attributes:
-        config: A dictionary containing the configuration for the experiment.
-
-    """
-
-    # from ax.plot.contour import plot_contour
-    # from ax.plot.trace import optimization_trace_single_method
-    # from ax.utils.notebook.plotting import init_notebook_plotting, render
-    from ax.service.managed_loop import optimize
-
-    tune_params = gather_search_spaces(config, mode="ax")
-
-    global trial
-    trial = 0
-    tune_group_id = uuid.uuid4().hex
-    OmegaConf.update(config, "tags.tune_group_id", tune_group_id)
-
-    def _wrapper(_tune_config):
-        global trial
-        trial += 1
-        OmegaConf.update(config, "tags.tune_trial", f"{trial}")
-        return tune_train(_tune_config, config)
-
-    best_params, values, experiment, model = optimize(
-        parameters=tune_params,
-        evaluation_function=_wrapper,
-        objective_name="loss",
-        minimize=True,
-        total_trials=3,
-    )
-
-    OmegaConf.update(config, "tags.tune_trial", "best")
-
-    tune_train(best_params, config)
-
-    LOGGER.info(f"Best: {best_params}, Values: {values}, Experiment: {experiment}")
-
-
-def tune_experiment(args=None):
-    """
-    Run hyperparameter tuning.
-
-    If `mode` is `None`, then the `mode` is read from the command line arguments.
-
-    Attributes:
-        mode: The mode of the tuner. Either "ray" or "ax".
-    """
-    if args is None:
-        mode_parser = argparse.ArgumentParser(add_help=False)
-        mode_parser.add_argument("--mode", type=str, default="ray", choices=["ray", "ax"])
-        known_args, other = mode_parser.parse_known_args()
-        mode = known_args.mode
-    else:
-        other = None
-
-    cli = build_cli_parser()
-
-    config = cli.parse_args(other)
-
-    if config.exp_name is None:
-        LOGGER.error("Experiment name must be specified")
-        exit(1)
-
-    match mode:
-        case "ray":
-            tune_ray(config)
-        case "ax":
-            tune_ax(config)
+# def tune_experiment(args=None):
+#     """
+#     Run hyperparameter tuning.
+#
+#     If `mode` is `None`, then the `mode` is read from the command line arguments.
+#
+#     Attributes:
+#         mode: The mode of the tuner. Either "ray" or "ax".
+#     """
+#     if args is None:
+#         mode_parser = argparse.ArgumentParser(add_help=False)
+#         mode_parser.add_argument("--mode", type=str, default="ray", choices=["ray", "ax"])
+#         known_args, other = mode_parser.parse_known_args()
+#         mode = known_args.mode
+#     else:
+#         other = None
+#
+#     cli = build_cli_parser()
+#
+#     config = cli.parse_args(other)
+#
+#     if config.exp_name is None:
+#         LOGGER.error("Experiment name must be specified")
+#         exit(1)
+#
+#     match mode:
+#         case "ray":
+#             tune_ray(config)
+#         case "ax":
+#             tune_ax(config)
 
 
 # def tune_slurm(mode=None):
