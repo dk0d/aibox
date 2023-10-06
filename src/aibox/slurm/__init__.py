@@ -182,9 +182,9 @@ class Slurm(object):
         self.exports = ""
 
         if slurm_cfg.ray_tune:
-            self.command = f"python -u {PYTHON_PATH}{SCRIPT_ARGS}"
+            self.command = f"python -u {self.python_path}{self.scriptArgs}"
         else:
-            self.command = f"srun python -u {PYTHON_PATH}{SCRIPT_ARGS}"
+            self.command = f"srun python -u {self.python_path}{self.scriptArgs}"
 
         if scripts_dir is not None:
             self.scripts_dir = as_path(scripts_dir).as_posix()
