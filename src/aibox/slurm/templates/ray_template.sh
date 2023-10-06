@@ -57,8 +57,8 @@ srun --nodes=1 --ntasks=1 -w $node_1 \
 		--node-ip-address=$ip \
 		--port=6379 \
 		--redis-password=$redis_password \
-		--num-cpus={N_CPUS} \
-		--num-gpus={N_GPUS} \
+		--num-cpus=__N_CPUS__ \
+		--num-gpus=__N_GPUS__ \
 		--block  &
 sleep 30
 
@@ -70,8 +70,8 @@ for ((i = 1; i <= $worker_num; i++)); do
 		ray start \
 			--address $ip_head \
 			--redis-password=$redis_password \
-			--num-cpus={N_CPUS} \
-			--num-gpus={N_GPUS} \
+			--num-cpus=__N_CPUS__ \
+			--num-gpus=__N_GPUS__ \
 			--block &
 	sleep 5
 done

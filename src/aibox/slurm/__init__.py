@@ -161,6 +161,9 @@ class Slurm(object):
             )
             self.num_cpus = slurm_cfg.cpus_per_task
             self.num_gpus = int(slurm_cfg.gres.split(":")[-1])
+            self.ray_tmpl = self.ray_tmpl.replace("__N_CPUS__", str(self.num_cpus)).replace(
+                "__N_GPUS__", str(self.num_gpus)
+            )
         else:
             self.ray_tmpl = ""
 
@@ -193,7 +196,7 @@ class Slurm(object):
         self.date_in_name = bool(date_in_name)
 
     def __str__(self):
-        params = dict(
+        return self.tmpl.format(
             NAME=self.name,
             HEADER=self.header,
             LOG_DIR=self.log_dir,
@@ -204,9 +207,6 @@ class Slurm(object):
             EXPORTS=self.exports,
             RAY_TUNE=self.ray_tmpl,
         )
-        if self.slurm_cfg.ray_tune:
-            params.update(N_CPUS=self.num_cpus, N_GPUS=self.num_gpus)
-        return self.tmpl.format(**params)
 
     def _tmpfile(self):
         if self.scripts_dir is None:
