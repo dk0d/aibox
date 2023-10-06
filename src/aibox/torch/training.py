@@ -1,5 +1,6 @@
 # %%
 import os
+from typing import Any
 
 import lightning as L
 import torch
@@ -12,6 +13,35 @@ from lightning.pytorch.callbacks import RichProgressBar
 from aibox.cli import AIBoxCLI, OmegaConf
 from aibox.config import init_from_cfg, config_update
 from aibox.logger import get_logger
+
+try:
+    from ray._private.usage.usage_lib import record_extra_usage_tag, TagKey
+    from ray.train.lightning._lightning_utils import get_worker_root_device
+
+    class RayDDPStrategyWrapper(DDPStrategy):
+        """Subclass of DDPStrategy to ensure compatibility with Ray orchestration.
+
+        For a full list of initialization arguments, please refer to:
+        https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.strategies.DDPStrategy.html
+        """
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            record_extra_usage_tag(TagKey.TRAIN_LIGHTNING_RAYDDPSTRATEGY, "1")
+
+        @property
+        def root_device(self) -> torch.device:
+            return get_worker_root_device()
+
+        @property
+        def distributed_sampler_kwargs(self) -> dict[str, Any]:
+            return dict(
+                num_replicas=self.world_size,
+                rank=self.global_rank,
+            )
+
+except ImportError:
+    pass
 
 EVALUATE_OUTPUT = list[dict[str, float]]  # 1 dict per DataLoader
 
@@ -186,9 +216,9 @@ def init_trainer(config):
 
             # from ray.tune.integration.lightning import TuneReportCallback
             from ray.train.lightning import (
-                RayTrainReportCallback,
+                # RayTrainReportCallback,
                 RayLightningEnvironment,
-                RayDDPStrategy,
+                # RayDDPStrategy,
             )
 
             config_update(
@@ -223,9 +253,9 @@ def init_trainer(config):
             strategy = init_from_cfg(config.trainer.strategy)
         else:
             if "tuner" in config:
-                from ray.train.lightning import RayDDPStrategy, RayLightningEnvironment
+                from ray.train.lightning import RayLightningEnvironment
 
-                strategy = RayDDPStrategy(find_unused_parameters=False)
+                strategy = RayDDPStrategyWrapper(find_unused_parameters=False)
                 trainerParams.update(plugins=RayLightningEnvironment())
             elif torch.has_cuda and torch.cuda.device_count() > 1:
                 strategy = DDPStrategy(find_unused_parameters=False)
