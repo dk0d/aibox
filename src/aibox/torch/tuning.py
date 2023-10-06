@@ -1,5 +1,6 @@
 import argparse
 import uuid
+from typing import Any
 
 import numpy as np
 from omegaconf import OmegaConf
@@ -138,7 +139,7 @@ def get_tuner_type(_type, values, mode="ray"):
             raise ValueError(f"Unknown type: {_type}")
 
 
-def gather_search_spaces(config, mode="ray"):
+def gather_search_spaces(config, mode="ray") -> dict[str, Any] | list[dict[str, Any]]:
     """
     Gather the search spaces for all hyperparameters given a configuration.
 
@@ -151,11 +152,7 @@ def gather_search_spaces(config, mode="ray"):
     """
     match mode:
         case "ray":
-            tune_config = {}
-            for s, v in config.tuner.search_spaces.items():
-                for k, v in v.items():
-                    tk = ".".join([s, "args", k])
-                    tune_config[tk] = get_tuner_type(v["type"], v["values"])
+            return gather_search_spaces_ray(config)
         case "ax":
             tune_config = []
             for s, v in config.tuner.search_spaces.items():
@@ -164,9 +161,26 @@ def gather_search_spaces(config, mode="ray"):
                     c = get_tuner_type(v["type"], v["values"], mode="ax")
                     c["name"] = tk
                     tune_config.append(c)
-            pass
         case _:
             raise ValueError(f"Unknown mode: {mode}")
+    return tune_config
+
+
+def gather_search_spaces_ray(config) -> dict[str, Any]:
+    """
+    Gather the Ray search spaces for all hyperparameters given a configuration.
+
+    Attributes:
+        config: The configuration file.
+
+    Returns:
+        A dictionary of search spaces.
+    """
+    tune_config = {}
+    for s, v in config.tuner.search_spaces.items():
+        for k, v in v.items():
+            tk = ".".join([s, "args", k])
+            tune_config[tk] = get_tuner_type(v["type"], v["values"])
     return tune_config
 
 
@@ -187,12 +201,14 @@ def tune_ray(config):
     # from ray.tune.search.ax import AxSearch
     # from ray.air.integrations.mlflow import MLflowLoggerCallback, setup_mlflow
 
-    tune_config = gather_search_spaces(config, mode="ray")
+    tune_config = gather_search_spaces_ray(config)
     trainable = tune.with_parameters(tune_train, config=config)
     tuner = tune.Tuner(
-        tune.with_resources(
-            trainable,
-        ),  # resources={"cpu": 5, "gpu": 0}),
+        trainable,
+        # tune.with_resources(
+        #     trainable,
+        #     resources={"cpu": 5, "gpu": 0}),
+        # ),
         tune_config=tune.TuneConfig(
             metric="loss",
             mode="min",
