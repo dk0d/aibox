@@ -271,7 +271,7 @@ class SlurmConfig:
         self.ray_tune = ray_tune
         if self.ray_tune:
             self.ntasks_per_node = 1
-            self.gpus_per_task = ngpu
+            # self.gpus_per_task = ngpu
             self.exclusive = True
             del self.cpus_per_task
 
