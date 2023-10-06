@@ -10,7 +10,7 @@ from lightning.pytorch.utilities.model_helpers import is_overridden
 from lightning.pytorch.callbacks import RichProgressBar
 
 from aibox.cli import AIBoxCLI, OmegaConf
-from aibox.config import init_from_cfg
+from aibox.config import init_from_cfg, config_update
 from aibox.logger import get_logger
 
 EVALUATE_OUTPUT = list[dict[str, float]]  # 1 dict per DataLoader
@@ -107,9 +107,12 @@ def handle_slurm_param(config):
         }
 
         try:
-            config.data.num_workers = int(slurmMeta["SLURM_TASKS_PER_NODE"])
+            tasks_per_node = slurmMeta["SLURM_TASKS_PER_NODE"]
+            if tasks_per_node is not None:
+                config_update(config, "data.num_workers", int(tasks_per_node))
         except Exception as e:
             LOGGER.error("Failed to set num_workers from SLURM_TASKS_PER_NODE", exc_info=True)
+            LOGGER.exception(e)
         # torch.set_float32_matmul_precision("medium")
     else:
         slurmMeta = {}
@@ -127,6 +130,9 @@ def init_trainer(config):
     Returns:
         A trainer.
     """
+
+    handle_slurm_param(config)
+
     trainerParams = dict(**config.trainer)
 
     if "fast_dev_run" not in trainerParams:
@@ -296,6 +302,7 @@ def train_and_test(config) -> EVALUATE_OUTPUT | None:
     Returns:
         A tuple of model, datamodule, and trainer.
     """
+
     model, dm, trainer = train(config)
 
     if not is_overridden("test_step", model):
@@ -331,7 +338,6 @@ def main(args=None):
         LOGGER.error("Experiment name must be specified")
         exit(1)
 
-    handle_slurm_param(config)
     results = train_and_test(config)
 
     return results
