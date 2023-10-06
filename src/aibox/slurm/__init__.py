@@ -180,7 +180,9 @@ class Slurm(object):
         self.name = self.name.strip(" -")
         self.name += "-" + name_addition.strip(" -")
 
+        LOGGER.info(f"Running slurm script: {self.name}")
         tmpl = str(self)
+
         if debug:
             print(tmpl)
             return
@@ -262,9 +264,11 @@ class SlurmConfig:
             assert ngpu is not None and ngpu > 0, "Must specify number of gpus"
             self.partition = "gpu"
             self.gres = f"gpu:{gpu}:{ngpu}"
+            # self.gpus = f"{gpu}:{ngpu}"
         else:
             self.partition = partition
             self.gres = None
+            # self.gpus = None
 
         self.time = time
 
@@ -273,7 +277,7 @@ class SlurmConfig:
             self.ntasks_per_node = 1
             # self.gpus_per_task = ngpu
             # self.exclusive = True
-            del self.cpus_per_task
+            # del self.cpus_per_task
 
 
 def submit_slurm_script(
