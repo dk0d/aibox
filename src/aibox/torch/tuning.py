@@ -16,6 +16,7 @@ from aibox.logger import get_logger
 # from ray.tune.integration.lightning import TuneReportCallback
 from aibox.torch.training import build_cli_parser, train_and_test
 from aibox.utils import is_list, print
+from ray.air.integrations.mlflow import MLflowLoggerCallback, setup_mlflow
 
 # os.environ["TUNE_DISABLE_AUTO_CALLBACK_LOGGERS"] = "1"
 
@@ -32,6 +33,8 @@ LOGGER = get_logger(__name__)
 def tune_train(tune_config, config):
     if isinstance(config, dict):
         config = OmegaConf.create(config)
+
+    setup_mlflow(tune_config, experiment_name=config.name, tracking_uri=config.logging.tracking_uri)
 
     # setup for config merge
     tune_config = OmegaConf.from_dotlist([f"{k}={v}" for k, v in tune_config.items()])
@@ -205,7 +208,7 @@ def tune_ray(config):
     # ray.init()
 
     # from ray.tune.search.ax import AxSearch
-    # from ray.air.integrations.mlflow import MLflowLoggerCallback
+    # from ray.air.integrations.mlflow import MLflowLoggerCallback, setup_mlflow
 
     # LOGGER.info(f"TUNE Logging to: {config.logging.tracking_uri}")
     tune_config = gather_search_spaces_ray(config)
