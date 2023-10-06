@@ -50,7 +50,7 @@ class Slurm(object):
         if slurm_kwargs is None:
             slurm_kwargs = {}
 
-        self.tmpl_path = tmpl_path or (as_path(__file__) / "templates/sbatch_template.sh")
+        self.tmpl_path = tmpl_path or (as_path(__file__).parent / "templates/sbatch_template.sh")
         tmpl = self.tmpl_path.read_text()
         self.log_dir = log_dir
         self.bash_strict = bash_strict
@@ -79,7 +79,7 @@ class Slurm(object):
             self.ray_tune = "\n".join(
                 [
                     line
-                    for line in (as_path(__file__) / "templates/ray_template.sh").read_text().splitlines()
+                    for line in (as_path(__file__).parent / "templates/ray_template.sh").read_text().splitlines()
                     if len(line) > 0 and line[0] != "#"
                 ]
             )
