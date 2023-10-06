@@ -11,8 +11,10 @@ import tempfile
 from pathlib import Path
 from pprint import pprint
 
+from aibox.logger import get_logger
 from aibox.utils import as_path
 
+LOGGER = get_logger(__name__)
 
 VALID_DEPENDENCY_TYPES = {
     "after",
@@ -308,6 +310,9 @@ def submit_slurm_script(
                 _scriptArgs.append(f"{k}{v}")
     else:
         _scriptArgs.extend(py_file_args)
+
+    if slurm_cfg.ray_tune:
+        LOGGER.info("Using Ray Tune Template")
 
     modules = "\n".join([f"module load {m}" for m in modules])
     envPath = as_path(conda_envs_dir) / env_name
