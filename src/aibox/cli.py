@@ -163,13 +163,14 @@ class AIBoxCLI:
             config = config_from_path(path)
             return path, config
         except Exception as e:
-            errormsg = (
-                f"[bold red]Error loading {custom_msg} {name}: {e}"
-                if custom_msg is not None
-                else f"[bold red]Error loading {name}: {e}"
-            )
-            LOGGER.error(errormsg)
-            LOGGER.exception(e)
+            if verbose:
+                errormsg = (
+                    f"[bold red]Error loading {custom_msg} {name}: {e}"
+                    if custom_msg is not None
+                    else f"[bold red]Error loading {name}: {e}"
+                )
+                LOGGER.error(errormsg)
+                LOGGER.exception(e)
         return None, OmegaConf.from_dotlist([])
 
     def _resolve_links(self, config) -> DictConfig:
