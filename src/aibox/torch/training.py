@@ -96,20 +96,23 @@ def handle_slurm_param(config):
                 "SLURM_JOB_NUM_NODES",
                 "SLURM_NTASKS",
                 "SLURM_TASKS_PER_NODE",
+                "SLURM_TASKS_PER_CPU",
                 "SLURM_MEM_PER_NODE",
                 "SLURM_MEM_PER_CPU",
                 "SLURM_NODEID",
                 "SLURM_PROCID",
                 "SLURM_LOCALID",
                 "SLURM_TASK_PID",
-                "SLURM_CPUS_ON_NODE",
+                "SLURM_CPUS_PER_TASK",
             ]
         }
 
         try:
-            tasks_per_node = slurmMeta["SLURM_TASKS_PER_NODE"]
-            if tasks_per_node is not None:
-                config_update(config, "data.num_workers", int(tasks_per_node))
+            for k in ["SLURM_TASKS_PER_NODE", "SLURM_CPUS_PER_TASK"]:
+                n = slurmMeta[k]
+                if n is not None:
+                    config_update(config, "data.num_workers", int(n))
+                    break
         except Exception as e:
             LOGGER.error("Failed to set num_workers from SLURM_TASKS_PER_NODE", exc_info=True)
             LOGGER.exception(e)
@@ -147,7 +150,7 @@ def init_trainer(config):
     callbacks = init_callbacks(config)
 
     try:
-        if "tuner" in config and config.tuner.mode == "ray":
+        if "tuner" in config:
             """
             # Example config for tuner
 

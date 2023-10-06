@@ -33,71 +33,81 @@ def tmp(suffix=".sh"):
     return t
 
 
+def module_load_from_modules(modules: list[str]):
+    return [f"module load {m}" for m in modules]
+
+
+def sbatch_directives_from_dict(d: dict):
+    if "time" not in d.keys():
+        d["time"] = "7-00:00:00"
+
+    header = []
+    for k, v in d.items():
+        if isinstance(v, bool) and v:
+            header.append(f"#SBATCH --{k}")
+            continue
+        elif len(k) > 1:
+            k = f"--{k}="
+        else:
+            k = f"-{k} "
+        header.append(f"#SBATCH {k}{v}")
+    return header
+
+
 class Slurm(object):
     def __init__(
         self,
         name,
         env_path,
         python_path,
-        slurm_kwargs=None,
+        slurm_cfg: SlurmConfig,
         modules=None,
         tmpl_path=None,
         date_in_name=True,
         scriptArgs=None,
         scripts_dir: Path | str = "slurm-scripts",
-        tune_tmpl=False,
         log_dir: Path | str = "logs",
         bash_strict=True,
     ):
-        if slurm_kwargs is None:
-            slurm_kwargs = {}
-
+        if sbatch_directives is None:
+            sbatch_directives = {}
+        self.slurm_cfg = slurm_cfg
         self.tmpl_path = tmpl_path or (as_path(__file__).parent / "templates/sbatch_template.sh")
-        tmpl = self.tmpl_path.read_text()
         self.log_dir = log_dir
         self.bash_strict = bash_strict
-
-        header = []
-
-        if "time" not in slurm_kwargs.keys():
-            slurm_kwargs["time"] = "7-00:00:00"
-
-        for k, v in slurm_kwargs.items():
-            if isinstance(v, bool) and v:
-                header.append(f"#SBATCH --{k}")
-                continue
-            elif len(k) > 1:
-                k = f"--{k}="
-            else:
-                k = f"-{k} "
-            header.append(f"#SBATCH {k}{v}")
 
         # add bash setup list to collect bash script config
         bash_setup = []
         if bash_strict:
             bash_setup.append("set -eo pipefail -o nounset")
 
-        if tune_tmpl:
-            self.ray_tune = "\n".join(
+        if slurm_cfg.ray_tune:
+            self.ray_tmpl = "\n".join(
                 [
                     line
                     for line in (as_path(__file__).parent / "templates/ray_template.sh").read_text().splitlines()
                     if len(line) > 0 and line[0] != "#"
                 ]
             )
+            self.num_cpus = slurm_cfg.cpus_per_task
+            self.num_gpus = int(slurm_cfg.gres.split(":")[-1])
         else:
-            self.ray_tune = ""
+            self.ray_tmpl = ""
 
         self.modules = modules
-        self.header = "\n".join(header)
+        self.header = "\n".join(sbatch_directives_from_dict(sbatch_directives))
         self.bash_setup = "\n".join(bash_setup)
         self.name = "".join(x for x in name.replace(" ", "-") if x.isalnum() or x == "-")
-        self.tmpl = tmpl
+        self.tmpl = self.tmpl_path.read_text()
         self.env_path = env_path
         self.python_path = as_path(python_path) if python_path is not None else None
         self.scriptArgs = scriptArgs
         self.exports = ""
-        self.slurm_kwargs = slurm_kwargs
+
+        if slurm_cfg.ray_tune:
+            self.command = f"python -u {PYTHON_PATH}{SCRIPT_ARGS}"
+        else:
+            self.command = f"srun python -u {PYTHON_PATH}{SCRIPT_ARGS}"
 
         if scripts_dir is not None:
             self.scripts_dir = as_path(scripts_dir).as_posix()
@@ -106,18 +116,20 @@ class Slurm(object):
         self.date_in_name = bool(date_in_name)
 
     def __str__(self):
-        return self.tmpl.format(
+        params = dict(
             NAME=self.name,
             HEADER=self.header,
             LOG_DIR=self.log_dir,
             BASH_SETUP=self.bash_setup,
             ENV_PATH=self.env_path,
-            PYTHON_PATH=self.python_path,
-            SCRIPT_ARGS=self.scriptArgs,
+            COMMAND=self.command,
             MODULES=self.modules,
             EXPORTS=self.exports,
-            RAY_TUNE=self.ray_tune,
+            RAY_TUNE=self.ray_tmpl,
         )
+        if self.slurm_cfg.ray_tune:
+            params.update(N_CPUS=self.num_cpus, N_GPUS=self.num_gpus)
+        return self.tmpl.format(**params)
 
     def _tmpfile(self):
         if self.scripts_dir is None:
@@ -280,6 +292,24 @@ class SlurmConfig:
             # del self.cpus_per_task
 
 
+def file_args_from(args: dict | list):
+    script_args = [""]
+
+    if isinstance(args, dict):
+        for k, v in args.items():
+            k = k = f"--{k}=" if len(k) > 1 else f"-{k} "
+            if isinstance(v, bool):
+                if v:
+                    k = k[:-1]
+                    script_args.append(f"{k}")
+            else:
+                script_args.append(f"{k}{v}")
+    else:
+        script_args.extend(args)
+    script_args = " ".join(script_args)
+    return script_args
+
+
 def submit_slurm_script(
     name,
     env_name,
@@ -298,38 +328,22 @@ def submit_slurm_script(
     modules += [f"cuda/{cudaVersion}", "conda"]
 
     if verbose:
-        pprint(slurm_cfg.params)
-        pprint(py_file_args)
-
-    _scriptArgs = [""]
-
-    if isinstance(py_file_args, dict):
-        for k, v in py_file_args.items():
-            k = k = f"--{k}=" if len(k) > 1 else f"-{k} "
-            if isinstance(v, bool):
-                if v:
-                    k = k[:-1]
-                    _scriptArgs.append(f"{k}")
-            else:
-                _scriptArgs.append(f"{k}{v}")
-    else:
-        _scriptArgs.extend(py_file_args)
+        LOGGER.info(slurm_cfg.params)
+        LOGGER.info(py_file_args)
 
     if slurm_cfg.ray_tune:
         LOGGER.info("Using Ray Tune Template")
 
     modules = "\n".join([f"module load {m}" for m in modules])
     envPath = as_path(conda_envs_dir) / env_name
-    _scriptArgs = " ".join(_scriptArgs)
     s = Slurm(
         name,
-        slurm_kwargs=slurm_cfg.params,
+        slurm_cfg=slurm_cfg,
         date_in_name=False,
         modules=modules,
         env_path=envPath,
         python_path=py_file_path,
-        tune_tmpl=slurm_cfg.ray_tune,
-        scriptArgs=_scriptArgs,
+        scriptArgs=file_args_from(py_file_args),
         scripts_dir=scripts_dir,
         log_dir=log_dir,
     )
