@@ -1,11 +1,16 @@
-from argparse import ArgumentParser, Action, Namespace
-from pathlib import Path
-from omegaconf import OmegaConf, DictConfig
-from typing import Any, Sequence
-import rich
 import datetime
-from .utils import chunk
-from .config import config_from_path
+from argparse import Action, ArgumentParser, Namespace
+from pathlib import Path
+from typing import Any, Sequence
+
+import rich
+from omegaconf import DictConfig, OmegaConf
+
+from aibox.config import config_from_path
+from aibox.logger import get_logger
+from aibox.utils import chunk
+
+LOGGER = get_logger(__name__)
 
 
 class CLIException(Exception):
@@ -131,7 +136,7 @@ class AIBoxCLI:
             for u in _unk:
                 unk.extend(u)
             if len(unk) % 2 != 0:
-                rich.print("[bold red]Only key-value pair arguments are supported for OmegaConf")
+                LOGGER.error("[bold red]Only key-value pair arguments are supported for OmegaConf")
                 raise CLIException("Only key-value pair arguments are supported for OmegaConf")
             args_dict: dict = {k: v for k, v in chunk(unk, 2)}
         else:
@@ -158,13 +163,13 @@ class AIBoxCLI:
             config = config_from_path(path)
             return path, config
         except Exception as e:
-            if verbose:
-                errormsg = (
-                    f"[bold red]Error loading {custom_msg} {name}: {e}"
-                    if custom_msg is not None
-                    else f"[bold red]Error loading {name}: {e}"
-                )
-                rich.print(errormsg)
+            errormsg = (
+                f"[bold red]Error loading {custom_msg} {name}: {e}"
+                if custom_msg is not None
+                else f"[bold red]Error loading {name}: {e}"
+            )
+            LOGGER.error(errormsg)
+            LOGGER.exception(e)
         return None, OmegaConf.from_dotlist([])
 
     def _resolve_links(self, config) -> DictConfig:
@@ -250,7 +255,8 @@ class AIBoxCLI:
             try:
                 _config = config_from_path(cli_config.config)
             except Exception as e:
-                rich.print(f"[bold red]Error loading config {cli_config.config}: {e}")
+                LOGGER.error(f"[bold red]Error loading config {cli_config.config}")
+                LOGGER.exception(e)
 
         config = OmegaConf.merge(
             global_defaults,
