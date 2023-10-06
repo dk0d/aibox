@@ -147,8 +147,6 @@ def init_trainer(config):
         LOGGER.info(f"Logging to: {logger.log_dir}")
         trainerParams.update(logger=logger)
 
-    callbacks = init_callbacks(config)
-
     try:
         if "tuner" in config:
             """
@@ -187,18 +185,31 @@ def init_trainer(config):
             """
 
             # from ray.tune.integration.lightning import TuneReportCallback
-            from ray.train.lightning import RayTrainReportCallback
-
-            tune_callback = TuneReportCallback(
-                metrics=config.tuner.metrics,
-                on=config.tuner.on,
+            from ray.train.lightning import (
+                RayTrainReportCallback,
+                RayLightningEnvironment,
+                RayDDPStrategy,
             )
-            callbacks.append(tune_callback)
+
+            config_update(
+                config,
+                "trainer.callbacks.ray_train_report",
+                dict(
+                    __classpath__="ray.train.lightning.RayTrainReportCallback",
+                ),
+            )
+            # tune_callback = RayTrainReportCallback(
+            #     # metrics=config.tuner.metrics,
+            #     # on=config.tuner.on,
+            # )
+            # callbacks.append(tune_callback)
 
             trainerParams.update(enable_progress_bar=False)
     except Exception as e:
         LOGGER.error("error in init_trainer", exc_info=True)
         pass
+
+    callbacks = init_callbacks(config)
 
     strategy = "auto"
 
@@ -211,7 +222,12 @@ def init_trainer(config):
         if "strategy" in config.trainer:
             strategy = init_from_cfg(config.trainer.strategy)
         else:
-            if torch.has_cuda and torch.cuda.device_count() > 1:
+            if "tuner" in config:
+                from ray.train.lightning import RayDDPStrategy, RayLightningEnvironment
+
+                strategy = RayDDPStrategy(find_unused_parameters=False)
+                trainerParams.update(plugins=RayLightningEnvironment())
+            elif torch.has_cuda and torch.cuda.device_count() > 1:
                 strategy = DDPStrategy(find_unused_parameters=False)
 
     if "profiler" in config.trainer:
@@ -235,6 +251,10 @@ def init_trainer(config):
         trainerParams.pop("strategy")
 
     trainer = L.Trainer(**trainerParams)
+    if "tuner" in config:
+        from ray.train.lightning import prepare_trainer
+
+        trainer = prepare_trainer(trainer)  # type: ignore
     return trainer
 
 
