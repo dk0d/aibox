@@ -1,7 +1,10 @@
 from typing import Any
 
+import torch
 import numpy as np
+import shutil
 from omegaconf import OmegaConf
+import multiprocessing as mp
 
 from aibox.logger import get_logger
 
@@ -29,6 +32,8 @@ LOGGER = get_logger(__name__)
 def tune_train(tune_config, config):
     if isinstance(config, dict):
         config = OmegaConf.create(config)
+
+    # setup for config merge
     tune_config = OmegaConf.from_dotlist([f"{k}={v}" for k, v in tune_config.items()])
     train_config = OmegaConf.merge(config, tune_config)
     results = train_and_test(train_config)
@@ -69,7 +74,7 @@ def get_tuner_type(_type, values, mode="ray"):
         tune = None
 
     if is_list(values):
-        values = list(OmegaConf.to_container(values))
+        values = list(OmegaConf.to_container(values))  # type: ignore
 
     match _type:
         case "choice":
@@ -86,53 +91,53 @@ def get_tuner_type(_type, values, mode="ray"):
         case "uniform":
             if mode == "ray":
                 assert tune is not None
-                return tune.uniform(*values)
+                return tune.uniform(*values)  # type: ignore
             return {"bounds": values, "type": "range", "value_type": "float"}
         case "loguniform":
             if mode == "ray":
                 assert tune is not None
-                return tune.loguniform(*values)
+                return tune.loguniform(*values)  # type: ignore
             return {"bounds": values, "type": "range", "log_scale": True, "value_type": "float"}
         case "randint":
             if mode == "ray":
                 assert tune is not None
-                return tune.randint(*values)
+                return tune.randint(*values)  # type: ignore
             return {"bounds": values, "type": "range", "value_type": "int"}
         case "randn":
             if mode == "ray":
                 assert tune is not None
-                return tune.randn(*values)
+                return tune.randn(*values)  # type: ignore
             return {"bounds": values, "type": "range", "value_type": "float"}
         case "quniform":
             if mode == "ray":
                 assert tune is not None
-                return tune.quniform(*values)
+                return tune.quniform(*values)  # type: ignore
             raise NotImplementedError(f"{_type} not implemented for Ax")
         case "qloguniform":
             if mode == "ray":
                 assert tune is not None
-                return tune.qloguniform(*values)
+                return tune.qloguniform(*values)  # type: ignore
             raise NotImplementedError(f"{_type} not implemented for Ax")
         case "qrandint":
             if mode == "ray":
                 assert tune is not None
-                return tune.qrandint(*values)
+                return tune.qrandint(*values)  # type: ignore
             raise NotImplementedError(f"{_type} not implemented for Ax")
         case "qrandn":
             if mode == "ray":
                 assert tune is not None
-                return tune.qrandn(*values)
+                return tune.qrandn(*values)  # type: ignore
             raise NotImplementedError(f"{_type} not implemented for Ax")
         case "grid_search":
             if mode == "ray":
                 assert tune is not None
                 return tune.grid_search(values)
             raise NotImplementedError(f"{_type} not implemented for Ax")
-        case "rand_grid_search":
-            if mode == "ray":
-                assert tune is not None
-                return tune.rand_grid_search(values)
-            raise NotImplementedError(f"{_type} not implemented for Ax")
+        # case "rand_grid_search":
+        #     if mode == "ray":
+        #         assert tune is not None
+        #         return tune.grid_search(values, randomize=True)
+        #     raise NotImplementedError(f"{_type} not implemented for Ax")
         case _:
             raise ValueError(f"Unknown type: {_type}")
 
@@ -194,28 +199,39 @@ def tune_ray(config):
         config: A dictionary containing the configuration for the experiment.
 
     """
+    # import ray
     from ray import air, tune
 
-    # from ray.tune.search.ax import AxSearch
-    from ray.air.integrations.mlflow import MLflowLoggerCallback
+    # ray.init()
 
+    # from ray.tune.search.ax import AxSearch
+    # from ray.air.integrations.mlflow import MLflowLoggerCallback
+
+    # LOGGER.info(f"TUNE Logging to: {config.logging.tracking_uri}")
     tune_config = gather_search_spaces_ray(config)
     trainable = tune.with_parameters(tune_train, config=config)
+    if shutil.which("sbatch") is not None:
+        n_cpu = config.slurm.cpus_per_task
+        n_gpu = config.slurm.ngpu
+    else:
+        n_cpu = mp.cpu_count()
+        n_gpu = torch.cuda.device_count()
+
     tuner = tune.Tuner(
-        trainable,
+        tune.with_resources(trainable, {"cpu": n_cpu, "gpu": n_gpu}),
         tune_config=tune.TuneConfig(
-            metric="loss",
-            mode="min",
+            metric=config.tuner.metric,
+            mode=config.tuner.mode,
             num_samples=config.tuner.num_samples,
         ),
         run_config=air.RunConfig(
             name=config.name,
             storage_path="~/ray_results",
             callbacks=[
-                MLflowLoggerCallback(
-                    experiment_name=config.name,
-                    tracking_uri=config.logger.tracking_uri,
-                ),
+                # MLflowLoggerCallback(
+                #     experiment_name=config.name,
+                #     tracking_uri=config.logging.tracking_uri,
+                # ),
             ],
         ),
         param_space=tune_config,

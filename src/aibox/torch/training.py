@@ -1,24 +1,29 @@
 # %%
 import os
+import shutil
+import tempfile
 from typing import Any
 
 import lightning as L
 import torch
 from lightning import seed_everything
+from lightning.pytorch.callbacks import Callback, RichProgressBar
 from lightning.pytorch.loggers import Logger
 from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.utilities.model_helpers import is_overridden
-from lightning.pytorch.callbacks import RichProgressBar
 
 from aibox.cli import AIBoxCLI, OmegaConf
-from aibox.config import init_from_cfg, config_update
+from aibox.config import config_update, init_from_cfg
 from aibox.logger import get_logger
 
 try:
-    from ray._private.usage.usage_lib import record_extra_usage_tag, TagKey
+    from lightning.pytorch.plugins.environments import LightningEnvironment  # type: ignore
+    from ray import train as ray_train
+    from ray._private.usage.usage_lib import TagKey, record_extra_usage_tag
+    from ray.train.lightning import RayLightningEnvironment, RayDDPStrategy
     from ray.train.lightning._lightning_utils import get_worker_root_device
 
-    class RayDDPStrategyWrapper(DDPStrategy):
+    class RayDDPStrategyWrapper(DDPStrategy, RayDDPStrategy):
         """Subclass of DDPStrategy to ensure compatibility with Ray orchestration.
 
         For a full list of initialization arguments, please refer to:
@@ -27,7 +32,7 @@ try:
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            record_extra_usage_tag(TagKey.TRAIN_LIGHTNING_RAYDDPSTRATEGY, "1")
+            record_extra_usage_tag(TagKey.TRAIN_LIGHTNING_RAYDDPSTRATEGY, "1")  # type: ignore
 
         @property
         def root_device(self) -> torch.device:
@@ -39,6 +44,73 @@ try:
                 num_replicas=self.world_size,
                 rank=self.global_rank,
             )
+
+    class RayLightningEnvironmentWrapper(RayLightningEnvironment, LightningEnvironment):
+        """Setup Lightning DDP training environment for Ray cluster."""
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            record_extra_usage_tag(TagKey.TRAIN_LIGHTNING_RAYLIGHTNINGENVIRONMENT, "1")  # type: ignore
+
+        def world_size(self) -> int:
+            return ray_train.get_context().get_world_size() or 1
+
+        def global_rank(self) -> int:
+            return ray_train.get_context().get_world_rank() or 0
+
+        def local_rank(self) -> int:
+            return ray_train.get_context().get_local_rank() or 0
+
+        def node_rank(self) -> int:
+            return ray_train.get_context().get_node_rank() or 0
+
+        def set_world_size(self, size: int) -> None:
+            # Disable it since `world_size()` directly returns data from AIR session.
+            pass
+
+        def set_global_rank(self, rank: int) -> None:
+            # Disable it since `global_rank()` directly returns data from AIR session.
+            pass
+
+        def teardown(self):
+            pass
+
+    class RayTrainReportCallback(Callback):
+        """A simple callback that reports checkpoints to Ray on train epoch end."""
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.trial_name = ray_train.get_context().get_trial_name()
+            self.local_rank = ray_train.get_context().get_local_rank()
+            self.tmpdir_prefix = os.path.join(tempfile.gettempdir(), self.trial_name)
+            if os.path.isdir(self.tmpdir_prefix) and self.local_rank == 0:
+                shutil.rmtree(self.tmpdir_prefix)
+
+            record_extra_usage_tag(TagKey.TRAIN_LIGHTNING_RAYTRAINREPORTCALLBACK, "1")
+
+        def on_train_epoch_end(self, trainer, pl_module) -> None:
+            # Creates a checkpoint dir with fixed name
+            tmpdir = os.path.join(self.tmpdir_prefix, str(trainer.current_epoch))
+            os.makedirs(tmpdir, exist_ok=True)
+
+            # Fetch metrics
+            metrics = trainer.callback_metrics
+            metrics = {k: v.item() for k, v in metrics.items()}
+
+            # (Optional) Add customized metrics
+            metrics["epoch"] = trainer.current_epoch
+            metrics["step"] = trainer.global_step
+
+            # Save checkpoint to local
+            ckpt_path = os.path.join(tmpdir, "checkpoint.ckpt")
+            trainer.save_checkpoint(ckpt_path, weights_only=False)
+
+            # Report to train session
+            checkpoint = ray_train.Checkpoint.from_directory(tmpdir)
+            ray_train.report(metrics=metrics, checkpoint=checkpoint)
+
+            if self.local_rank == 0:
+                shutil.rmtree(tmpdir)
 
 except ImportError:
     pass
@@ -214,18 +286,11 @@ def init_trainer(config):
             l2_regularization.values = [1e-10, 1e-3]
             """
 
-            # from ray.tune.integration.lightning import TuneReportCallback
-            from ray.train.lightning import (
-                # RayTrainReportCallback,
-                RayLightningEnvironment,
-                # RayDDPStrategy,
-            )
-
             config_update(
                 config,
                 "trainer.callbacks.ray_train_report",
                 dict(
-                    __classpath__="ray.train.lightning.RayTrainReportCallback",
+                    __classpath__="aibox.torch.training.RayTrainReportCallback",
                 ),
             )
             # tune_callback = RayTrainReportCallback(
@@ -241,6 +306,10 @@ def init_trainer(config):
 
     callbacks = init_callbacks(config)
 
+    # Remove progress bar if disabled -- raises error otherwise
+    if "enable_progress_bar" in trainerParams and not trainerParams["enable_progress_bar"]:
+        callbacks = [cb for cb in callbacks if not isinstance(cb, RichProgressBar)]
+
     strategy = "auto"
 
     # Set accelerator
@@ -253,10 +322,8 @@ def init_trainer(config):
             strategy = init_from_cfg(config.trainer.strategy)
         else:
             if "tuner" in config:
-                from ray.train.lightning import RayLightningEnvironment
-
                 strategy = RayDDPStrategyWrapper(find_unused_parameters=False)
-                trainerParams.update(plugins=RayLightningEnvironment())
+                trainerParams.update(plugins=RayLightningEnvironmentWrapper())
             elif torch.has_cuda and torch.cuda.device_count() > 1:
                 strategy = DDPStrategy(find_unused_parameters=False)
 
