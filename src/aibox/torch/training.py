@@ -142,11 +142,46 @@ def init_trainer(config):
 
     try:
         if "tuner" in config and config.tuner.mode == "ray":
+            """
+            # Example config for tuner
+
+            [tuner]
+            num_epochs = 10
+            num_samples = 10
+            metrics.loss = "val/loss"
+            metrics.acc = "val/acc"
+            on = "validation_end"
+
+            # hyperparameter tuning
+            [tuner.search_spaces.model]
+            # keys must be the same as the arg keys of the model
+            hdim0.type = "choice"
+            hdim0.values = [16, 11, 9]
+
+            kernel_size.type = "randint"
+            kernel_size.values = [2, 12]
+
+            n_conv_layers_per_block.type = "randint"
+            n_conv_layers_per_block.values = [1, 3]
+
+            dropout_rate.type = "uniform"
+            dropout_rate.values = [0.1, 0.3]
+
+            initial_lr.type = "loguniform"
+            initial_lr.values = [1e-4, 1e-2]
+
+            # momentum.values = [0.9]
+            # momentum.search_space = "tune.choice"
+
+            l2_regularization.type = "loguniform"
+            l2_regularization.values = [1e-10, 1e-3]
+            """
+
             from ray.tune.integration.lightning import TuneReportCallback
 
             tune_callback = TuneReportCallback(
-                metrics={"loss": "val/loss", "acc": "val/acc"},
-                on="validation_end",
+                metrics=config.tuner.metrics,
+                on=config.tuner.on,
             )
             callbacks.append(tune_callback)
 

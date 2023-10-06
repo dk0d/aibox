@@ -13,19 +13,6 @@ from pprint import pprint
 
 from aibox.utils import as_path
 
-# SBATCH -e {log_dir}/{name}.%J.err
-
-DEFAULT_TEMPLATE = """\
-#!/bin/bash
-
-{header}
-#SBATCH -o {log_dir}/{name}.%J.log
-#SBATCH -J {name}
-
-{bash_setup}
-
-__script__
-"""
 
 VALID_DEPENDENCY_TYPES = {
     "after",
@@ -48,17 +35,23 @@ class Slurm(object):
     def __init__(
         self,
         name,
+        env_path,
+        python_path,
         slurm_kwargs=None,
-        tmpl=None,
+        modules=None,
+        tmpl_path=None,
         date_in_name=True,
+        scriptArgs=None,
         scripts_dir: Path | str = "slurm-scripts",
+        tune_tmpl=False,
         log_dir: Path | str = "logs",
         bash_strict=True,
     ):
         if slurm_kwargs is None:
             slurm_kwargs = {}
-        if tmpl is None:
-            tmpl = DEFAULT_TEMPLATE
+
+        self.tmpl_path = tmpl_path or (as_path(__file__) / "templates/sbatch_template.sh")
+        tmpl = self.tmpl_path.read_text()
         self.log_dir = log_dir
         self.bash_strict = bash_strict
 
@@ -68,7 +61,10 @@ class Slurm(object):
             slurm_kwargs["time"] = "7-00:00:00"
 
         for k, v in slurm_kwargs.items():
-            if len(k) > 1:
+            if isinstance(v, bool) and v:
+                header.append(f"#SBATCH --{k}")
+                continue
+            elif len(k) > 1:
                 k = f"--{k}="
             else:
                 k = f"-{k} "
@@ -79,11 +75,28 @@ class Slurm(object):
         if bash_strict:
             bash_setup.append("set -eo pipefail -o nounset")
 
+        if tune_tmpl:
+            self.ray_tune = "\n".join(
+                [
+                    line
+                    for line in (as_path(__file__) / "templates/ray_template.sh").read_text().splitlines()
+                    if len(line) > 0 and line[0] != "#"
+                ]
+            )
+        else:
+            self.ray_tune = ""
+
+        self.modules = modules
         self.header = "\n".join(header)
         self.bash_setup = "\n".join(bash_setup)
         self.name = "".join(x for x in name.replace(" ", "-") if x.isalnum() or x == "-")
         self.tmpl = tmpl
+        self.env_path = env_path
+        self.python_path = as_path(python_path) if python_path is not None else None
+        self.scriptArgs = scriptArgs
+        self.exports = ""
         self.slurm_kwargs = slurm_kwargs
+
         if scripts_dir is not None:
             self.scripts_dir = as_path(scripts_dir).as_posix()
         else:
@@ -92,10 +105,16 @@ class Slurm(object):
 
     def __str__(self):
         return self.tmpl.format(
-            name=self.name,
-            header=self.header,
-            log_dir=self.log_dir,
-            bash_setup=self.bash_setup,
+            NAME=self.name,
+            HEADER=self.header,
+            LOG_DIR=self.log_dir,
+            BASH_SETUP=self.bash_setup,
+            ENV_PATH=self.env_path,
+            PYTHON_PATH=self.python_path,
+            SCRIPT_ARGS=self.scriptArgs,
+            MODULES=self.modules,
+            EXPORTS=self.exports,
+            RAY_TUNE=self.ray_tune,
         )
 
     def _tmpfile(self):
@@ -109,9 +128,8 @@ class Slurm(object):
 
     def run(
         self,
-        command,
         name_addition=None,
-        cmd_kwargs=None,
+        script_exports=None,
         _cmd="sbatch",
         tries=1,
         depends_on=None,
@@ -134,29 +152,33 @@ class Slurm(object):
         if depends_how not in VALID_DEPENDENCY_TYPES:
             raise ValueError(f"depends_how must be in {VALID_DEPENDENCY_TYPES}")
 
+        if depends_on is None or (len(depends_on) == 1 and depends_on[0] is None):
+            depends_on = []
+
+        if script_exports is None:
+            script_exports = {}
+
+        exports = []
+        for k, v in script_exports.items():
+            exports.append("export %s=%s" % (k, v))
+
+        exports = "\n".join(exports)
+
+        self.exports = exports
+
         if name_addition is None:
-            name_addition = hashlib.sha1(command.encode("utf-8")).hexdigest()[:4]
+            name_addition = hashlib.sha1(str(self).encode("utf-8")).hexdigest()[:4]
 
         if self.date_in_name:
             name_addition += "-" + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
 
         name_addition = name_addition.strip(" -")
 
-        if cmd_kwargs is None:
-            cmd_kwargs = {}
-
         n = self.name
         self.name = self.name.strip(" -")
         self.name += "-" + name_addition.strip(" -")
-        args = []
-        for k, v in cmd_kwargs.items():
-            args.append("export %s=%s" % (k, v))
-        args = "\n".join(args)
 
-        tmpl = str(self).replace("__script__", args + "\n###\n" + command)
-        if depends_on is None or (len(depends_on) == 1 and depends_on[0] is None):
-            depends_on = []
-
+        tmpl = str(self)
         if debug:
             print(tmpl)
             return
@@ -166,7 +188,7 @@ class Slurm(object):
 
         job_id = None
         for itry in range(1, tries + 1):
-            args = [_cmd]
+            exports = [_cmd]
             # sbatch (https://slurm.schedmd.com/sbatch.html) job dependency has the following format:
             # -d, --dependency=<dependency_list>
             #       <dependency_list> is of the form <type:job_id[:job_id][,type:job_id[:job_id]]>
@@ -183,9 +205,9 @@ class Slurm(object):
                     dependency_string = mid
             # Add dependency option to sbatch
             if dependency_string:
-                args.extend([f"--dependency={dependency_string}"])
-            args.append(sh.name)
-            res = subprocess.check_output(args).strip()
+                exports.extend([f"--dependency={dependency_string}"])
+            exports.append(sh.name)
+            res = subprocess.check_output(exports).strip()
             print(str(res, encoding="utf-8"), file=sys.stderr)
             self.name = n
             if not res.startswith(b"Submitted batch"):
@@ -199,13 +221,14 @@ class Slurm(object):
 class SlurmConfig:
     @property
     def params(self) -> dict:
-        return {re.sub("_", "-", k).lower(): v for k, v in self.__dict__.items() if v is not None}
+        return {re.sub("_", "-", k).lower(): v for k, v in self.__dict__.items() if v is not None and k != "ray_tune"}
 
     def __init__(
         self,
         nodes=1,
         cpus_per_task=1,
         mem_per_cpu="5gb",
+        # gpus_per_task=None,
         mem=None,
         qos=None,
         partition=None,
@@ -215,14 +238,15 @@ class SlurmConfig:
         gpu=None,
         ngpu=None,
         time="4-00:00:00",
+        ray_tune=False,
         **kwargs,  # ignore any other kwargs
     ) -> None:
         self.nodes = nodes
 
         # per pytorch lightning docs: https://pytorch-lightning.readthedocs.io/en/stable/clouds/cluster_advanced.html
         self.ntasks_per_node = ngpu
-
         self.cpus_per_task = cpus_per_task
+        # self.gpus_per_task = gpus_per_task
         self.mem = mem  # total mem
         if self.mem is None:
             self.mem_per_cpu = mem_per_cpu
@@ -242,6 +266,13 @@ class SlurmConfig:
 
         self.time = time
 
+        self.ray_tune = ray_tune
+        if self.ray_tune:
+            self.ntasks_per_node = 1
+            self.gpus_per_task = ngpu
+            self.exclusive = True
+            del self.cpus_per_task
+
 
 def submit_slurm_script(
     name,
@@ -258,19 +289,14 @@ def submit_slurm_script(
     debug=False,
 ):
     modules = modules if modules is not None else []
-    s = Slurm(
-        name,
-        slurm_kwargs=slurm_cfg.params,
-        date_in_name=False,
-        scripts_dir=scripts_dir,
-        log_dir=log_dir,
-    )
+    modules += [f"cuda/{cudaVersion}", "conda"]
 
     if verbose:
         pprint(slurm_cfg.params)
         pprint(py_file_args)
 
     _scriptArgs = [""]
+
     if isinstance(py_file_args, dict):
         for k, v in py_file_args.items():
             k = k = f"--{k}=" if len(k) > 1 else f"-{k} "
@@ -285,29 +311,17 @@ def submit_slurm_script(
 
     modules = "\n".join([f"module load {m}" for m in modules])
     envPath = as_path(conda_envs_dir) / env_name
-    # _scriptArgs = [a for a in _scriptArgs if re.match(r"^--slurm.*", a) is None]
     _scriptArgs = " ".join(_scriptArgs)
-
-    s.run(
-        f"""
-echo "Date      : $(date)"
-echo "host      : $(hostname -s)"
-echo "Directory : $(pwd)"
-
-module purge
-{modules}
-module load cuda/{cudaVersion}
-module load conda
-export NCCL_DEBUG=INFO
-export PYTHONFAULTHANDLER=1
-
-echo "$(nvidia-smi | grep Version)"
-echo "Running $SLURM_JOB_NAME on $SLURM_CPUS_ON_NODE CPU cores"
-export PATH=$PATH:{envPath / 'bin'}
-source activate {envPath}
-srun python {as_path(py_file_path)}{_scriptArgs}
-
-echo "End Date    : $(date)"
-""",
-        debug=debug,
+    s = Slurm(
+        name,
+        slurm_kwargs=slurm_cfg.params,
+        date_in_name=False,
+        modules=modules,
+        env_path=envPath,
+        python_path=py_file_path,
+        tune_tmpl=slurm_cfg.ray_tune,
+        scriptArgs=_scriptArgs,
+        scripts_dir=scripts_dir,
+        log_dir=log_dir,
     )
+    s.run(debug=debug)
