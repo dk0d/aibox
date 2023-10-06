@@ -186,7 +186,8 @@ def init_trainer(config):
             l2_regularization.values = [1e-10, 1e-3]
             """
 
-            from ray.tune.integration.lightning import TuneReportCallback
+            # from ray.tune.integration.lightning import TuneReportCallback
+            from ray.train.lightning import RayTrainReportCallback
 
             tune_callback = TuneReportCallback(
                 metrics=config.tuner.metrics,

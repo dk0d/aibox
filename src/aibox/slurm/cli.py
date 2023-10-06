@@ -2,7 +2,7 @@ import argparse
 import shutil
 
 from aibox.cli import AIBoxCLI
-from aibox.slurm import SlurmConfig, submit_slurm_script
+from aibox.slurm import SlurmDirectives, submit_slurm_script
 from aibox.utils import as_path, print
 
 
@@ -45,7 +45,7 @@ def main(args=None):
         log_dir=as_path(config.slurm.script_dir) / "logs",
         cudaVersion=config.slurm.cuda,
         modules=config.slurm.get("modules", None),
-        slurm_cfg=SlurmConfig(**config.slurm),
+        slurm_cfg=SlurmDirectives(**config.slurm),
         conda_envs_dir=config.slurm.env_dir,
         debug=args.debug,
     )

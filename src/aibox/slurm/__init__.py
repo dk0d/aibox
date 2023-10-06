@@ -54,13 +54,89 @@ def sbatch_directives_from_dict(d: dict):
     return header
 
 
+class SlurmDirectives:
+    @property
+    def params(self) -> dict:
+        return {re.sub("_", "-", k).lower(): v for k, v in self.__dict__.items() if v is not None and k != "ray_tune"}
+
+    def __init__(
+        self,
+        nodes=1,
+        cpus_per_task=1,
+        mem_per_cpu="5gb",
+        # gpus_per_task=None,
+        mem=None,
+        qos=None,
+        partition=None,
+        distribution=None,
+        mail_user=None,
+        mail_type=None,  # (NONE, BEGIN, END, FAIL, ALL)
+        gpu=None,
+        ngpu=None,
+        time="4-00:00:00",
+        ray_tune=False,
+        **kwargs,  # ignore any other kwargs
+    ) -> None:
+        self.nodes = nodes
+
+        # per pytorch lightning docs: https://pytorch-lightning.readthedocs.io/en/stable/clouds/cluster_advanced.html
+        self.ntasks_per_node = ngpu
+        self.cpus_per_task = cpus_per_task
+        # self.gpus_per_task = gpus_per_task
+        self.mem = mem  # total mem
+        if self.mem is None:
+            self.mem_per_cpu = mem_per_cpu
+        assert self.mem is not None or self.mem_per_cpu is not None, "One of `mem` or `mem_per_cpu` must be set"
+        self.qos = qos
+        self.mail_user = mail_user
+        self.mail_type = mail_type
+        self.distribution = distribution
+
+        if gpu is not None:
+            assert ngpu is not None and ngpu > 0, "Must specify number of gpus"
+            self.partition = "gpu"
+            self.gres = f"gpu:{gpu}:{ngpu}"
+            # self.gpus = f"{gpu}:{ngpu}"
+        else:
+            self.partition = partition
+            self.gres = None
+            # self.gpus = None
+
+        self.time = time
+
+        self.ray_tune = ray_tune
+        if self.ray_tune:
+            self.ntasks_per_node = 1
+            # self.gpus_per_task = ngpu
+            # self.exclusive = True
+            # del self.cpus_per_task
+
+    def sbatch_directives(self):
+        d = self.params
+
+        if "time" not in d.keys():
+            d["time"] = "7-00:00:00"
+
+        header = []
+        for k, v in d.items():
+            if isinstance(v, bool) and v:
+                header.append(f"#SBATCH --{k}")
+                continue
+            elif len(k) > 1:
+                k = f"--{k}="
+            else:
+                k = f"-{k} "
+            header.append(f"#SBATCH {k}{v}")
+        return header
+
+
 class Slurm(object):
     def __init__(
         self,
         name,
         env_path,
         python_path,
-        slurm_cfg: SlurmConfig,
+        slurm_cfg: SlurmDirectives,
         modules=None,
         tmpl_path=None,
         date_in_name=True,
@@ -69,17 +145,11 @@ class Slurm(object):
         log_dir: Path | str = "logs",
         bash_strict=True,
     ):
-        if sbatch_directives is None:
-            sbatch_directives = {}
         self.slurm_cfg = slurm_cfg
-        self.tmpl_path = tmpl_path or (as_path(__file__).parent / "templates/sbatch_template.sh")
-        self.log_dir = log_dir
-        self.bash_strict = bash_strict
 
-        # add bash setup list to collect bash script config
-        bash_setup = []
-        if bash_strict:
-            bash_setup.append("set -eo pipefail -o nounset")
+        # load base template
+        self.tmpl_path = tmpl_path or (as_path(__file__).parent / "templates/sbatch_template.sh")
+        self.tmpl = self.tmpl_path.read_text()
 
         if slurm_cfg.ray_tune:
             self.ray_tmpl = "\n".join(
@@ -94,11 +164,18 @@ class Slurm(object):
         else:
             self.ray_tmpl = ""
 
-        self.modules = modules
-        self.header = "\n".join(sbatch_directives_from_dict(sbatch_directives))
+        # set log dir
+        self.log_dir = log_dir
+
+        # add bash setup list to collect bash script config
+        bash_setup = []
+        if bash_strict:
+            bash_setup.append("set -eo pipefail -o nounset")
         self.bash_setup = "\n".join(bash_setup)
+
+        self.modules = modules
+        self.header = "\n".join(slurm_cfg.sbatch_directives())
         self.name = "".join(x for x in name.replace(" ", "-") if x.isalnum() or x == "-")
-        self.tmpl = self.tmpl_path.read_text()
         self.env_path = env_path
         self.python_path = as_path(python_path) if python_path is not None else None
         self.scriptArgs = scriptArgs
@@ -234,64 +311,6 @@ class Slurm(object):
         return job_id
 
 
-class SlurmConfig:
-    @property
-    def params(self) -> dict:
-        return {re.sub("_", "-", k).lower(): v for k, v in self.__dict__.items() if v is not None and k != "ray_tune"}
-
-    def __init__(
-        self,
-        nodes=1,
-        cpus_per_task=1,
-        mem_per_cpu="5gb",
-        # gpus_per_task=None,
-        mem=None,
-        qos=None,
-        partition=None,
-        distribution=None,
-        mail_user=None,
-        mail_type=None,  # (NONE, BEGIN, END, FAIL, ALL)
-        gpu=None,
-        ngpu=None,
-        time="4-00:00:00",
-        ray_tune=False,
-        **kwargs,  # ignore any other kwargs
-    ) -> None:
-        self.nodes = nodes
-
-        # per pytorch lightning docs: https://pytorch-lightning.readthedocs.io/en/stable/clouds/cluster_advanced.html
-        self.ntasks_per_node = ngpu
-        self.cpus_per_task = cpus_per_task
-        # self.gpus_per_task = gpus_per_task
-        self.mem = mem  # total mem
-        if self.mem is None:
-            self.mem_per_cpu = mem_per_cpu
-        assert self.mem is not None or self.mem_per_cpu is not None, "One of `mem` or `mem_per_cpu` must be set"
-        self.qos = qos
-        self.mail_user = mail_user
-        self.mail_type = mail_type
-        self.distribution = distribution
-
-        if gpu is not None:
-            assert ngpu is not None and ngpu > 0, "Must specify number of gpus"
-            self.partition = "gpu"
-            self.gres = f"gpu:{gpu}:{ngpu}"
-            # self.gpus = f"{gpu}:{ngpu}"
-        else:
-            self.partition = partition
-            self.gres = None
-            # self.gpus = None
-
-        self.time = time
-
-        self.ray_tune = ray_tune
-        if self.ray_tune:
-            self.ntasks_per_node = 1
-            # self.gpus_per_task = ngpu
-            # self.exclusive = True
-            # del self.cpus_per_task
-
-
 def file_args_from(args: dict | list):
     script_args = [""]
 
@@ -318,7 +337,7 @@ def submit_slurm_script(
     scripts_dir: Path,
     log_dir: Path,
     cudaVersion: str,
-    slurm_cfg: SlurmConfig,
+    slurm_cfg: SlurmDirectives,
     modules=None,
     conda_envs_dir="~/.conda/envs",
     verbose=False,
