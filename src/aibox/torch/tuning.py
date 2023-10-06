@@ -253,7 +253,7 @@ def tune_ray(config):
 #     # from ax.utils.notebook.plotting import init_notebook_plotting, render
 #     from ax.service.managed_loop import optimize
 #
-#     tune_params = gather_search_spaces(config, mode="ax")
+#     tune_param = gather_search_spaces(config, mode="ax")
 #
 #     global trial
 #     trial = 0
@@ -349,7 +349,7 @@ def main(args=None):
 
     config = cli.parse_args(args)
 
-    if config.exp_name is None:
+    if config.name is None:
         LOGGER.error("Experiment name must be specified")
         exit(1)
 
