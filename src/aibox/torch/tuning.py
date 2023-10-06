@@ -214,12 +214,12 @@ def tune_ray(config):
         ),
         run_config=air.RunConfig(
             name=config.name,
-            storage_path="~/Developer/pyxonar/logs/ray_results",
+            storage_path="~/ray_results",
             callbacks=[
-                # MLflowLoggerCallback(
-                #     experiment_name=config.exp_name,
-                #     tracking_uri=logger.log_dir,
-                # ),
+                MLflowLoggerCallback(
+                    experiment_name=config.name,
+                    tracking_uri=config.logger.tracking_uri,
+                ),
             ],
         ),
         param_space=tune_config,
