@@ -197,16 +197,12 @@ def tune_ray(config):
     from ray import air, tune
 
     # from ray.tune.search.ax import AxSearch
-    # from ray.air.integrations.mlflow import MLflowLoggerCallback, setup_mlflow
+    from ray.air.integrations.mlflow import MLflowLoggerCallback
 
     tune_config = gather_search_spaces_ray(config)
     trainable = tune.with_parameters(tune_train, config=config)
     tuner = tune.Tuner(
         trainable,
-        # tune.with_resources(
-        #     trainable,
-        #     resources={"cpu": 5, "gpu": 0}),
-        # ),
         tune_config=tune.TuneConfig(
             metric="loss",
             mode="min",
