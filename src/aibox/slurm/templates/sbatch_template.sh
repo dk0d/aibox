@@ -23,6 +23,7 @@ export PATH=$PATH:{ENV_PATH}/bin
 {RAY_TUNE}
 
 source activate {ENV_PATH}
-srun python -u {PYTHON_PATH}{SCRIPT_ARGS}
+
+{COMMAND}
 
 echo "End Date    : $(date)"
