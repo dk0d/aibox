@@ -18,20 +18,23 @@ try:
         TorchTensorField,
     )
 
-    from ffcv.loader import OrderOption
-    from ffcv.reader import Reader
-
     def field_to_str(f: Field) -> str:
-        mapping = {
-            RGBImageField: "image",
-            BytesField: "bytes",
-            IntField: "int",
-            FloatField: "float",
-            NDArrayField: "array",
-            JSONField: "json",
-            TorchTensorField: "tensor",
-        }
-        return mapping[f]
+        if isinstance(f, RGBImageField):
+            return "image"
+        elif isinstance(f, BytesField):
+            return "bytes"
+        elif isinstance(f, IntField):
+            return "int"
+        elif isinstance(f, FloatField):
+            return "float"
+        elif isinstance(f, NDArrayField):
+            return "array"
+        elif isinstance(f, JSONField):
+            return "json"
+        elif isinstance(f, TorchTensorField):
+            return "tensor"
+        else:
+            raise AttributeError(f"FFCV dataset can not manage {type(f)} fields")
 
     def obj_to_field(obj: Any) -> Field:
         if isinstance(obj, Image):
