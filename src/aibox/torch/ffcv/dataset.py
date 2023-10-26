@@ -10,11 +10,11 @@ from ffcv.reader import Reader
 class FFCVDataset(Dataset):
     def __init__(
         self,
+        dataset_config: Config,
         file_path: Path | str,
         pipeline_transforms: list[list],
         ordering: OrderOption = OrderOption.SEQUENTIAL,
         *,
-        dataset_config: Config,
         fields: tuple | None = None,
         page_size: int | None = None,
         num_workers: int = -1,
@@ -25,6 +25,7 @@ class FFCVDataset(Dataset):
         **kwargs,
     ):
         """
+        Wraps a torch dataset and creates a beton file for it if it does not exist.
 
 
         Args:
@@ -34,6 +35,19 @@ class FFCVDataset(Dataset):
                 dataset. Note that order matters.
                 If one item is None, will apply the default pipeline.
             ordering: order option for this pipeline, following FFCV specs on Dataset Ordering.
+            fields: use this if you want to use Fields different from default.
+                The length and order must respect the "get_item" return of the torch Dataset.
+                If you want to overwrite only some fields, pass None to the remaining positions.
+            page_size: page size internally used.
+                (optional argument of DatasetWriter object)
+            num_workers: Number of processes to use.
+                (optional argument of DatasetWriter object)
+            indices: Use a subset of the dataset specified by indices.
+                (optional argument of from_indexed_dataset method)
+            chunksize: Size of chunks processed by each worker during conversion.
+                (optional argument of from_indexed_dataset method)
+            shuffle_indices: Shuffle order of the dataset.
+                (optional argument of from_indexed_dataset method)
         """
 
         super().__init__()

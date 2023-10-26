@@ -51,9 +51,7 @@ try:
             self.num_workers = num_workers
             self.seed = seed
             self.os_cache = os_cache
-
             self.is_dist = is_dist
-
             self.kwargs = kwargs
 
             self.train_dataset = train_dataset
@@ -72,13 +70,14 @@ try:
             pass
 
         def get_split_kwargs(self, split):
-            return dict(
-                indices=self.kwargs.get(f"{split}_indices", None),
-                custom_fields=self.kwargs.get(f"{split}_custom_fields", {}),
-                drop_last=self.kwargs.get(f"{split}_drop_last", True),
-                batches_ahead=self.kwargs.get(f"{split}_batches_ahead", 3),
-                recompile=self.kwargs.get(f"{split}_recompile", False),
-            )
+            keys = [
+                ("indices", None),
+                ("custom_fields", {}),
+                ("drop_last", True),
+                ("batches_ahead", 3),
+                ("recompile", False),
+            ]
+            return {k: self.kwargs.get(f"{split}_{k}", default) for k, default in keys}
 
         def train_dataloader(self):
             if self.train_dataset is not None:
