@@ -25,6 +25,7 @@ class FFCVDataset(Dataset):
         **kwargs,
     ):
         """
+
         Wraps a torch dataset and creates a beton file for it if it does not exist.
 
 
