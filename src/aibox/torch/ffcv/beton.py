@@ -1,12 +1,13 @@
 try:
-    from ffcv.pipeline.operation import Operation
-    from ffcv.pipeline.allocation_query import AllocationQuery
-    from ffcv.pipeline.state import State
-    from dataclasses import replace
+    import os
 
-    from typing import Tuple, Optional, Callable
+    from aibox.torch.ffcv.utils import field_to_str, obj_to_field
+    from ffcv import DatasetWriter
+    from torch.utils.data import Dataset
 
-    import torch
+    from aibox.logger import get_logger
+
+    LOGGER = get_logger(__name__)
 
     def create_beton_wrapper(
         torch_dataset: Dataset,
@@ -17,6 +18,7 @@ try:
         indices: list[int] | None = None,
         chunksize: int = 100,
         shuffle_indices: bool = False,
+        verbose=False,
     ) -> None:
         """
         Simple utility function that allows the creation of .beton files from Torch Datasets.
@@ -46,17 +48,18 @@ try:
 
         1D uint8 numpy array - BytesField()
 
-        :param torch_dataset: Pytorch Dataset object (https://pytorch.org/tutorials/beginner/basics/data_tutorial.html).
-        :param output_path: desired path for .beton output file, "/" separated. E.g. "./my_dataset.beton"
-        :param fields: use this if you want to use Fields different from default.
-                       The length and order must respect the "get_item" return of the torch Dataset.
-                       If you want to overwrite only some fields, pass None to the remaining positions.
-        :param page_size: page size internally used. (optional argument of DatasetWriter object)
-        :param num_workers: Number of processes to use. (optional argument of DatasetWriter object)
-        :param indices: Use a subset of the dataset specified by indices. (optional argument of from_indexed_dataset method)
-        :param chunksize: Size of chunks processed by each worker during conversion.
-                          (optional argument of from_indexed_dataset method)
-        :param shuffle_indices: Shuffle order of the dataset. (optional argument of from_indexed_dataset method)
+        Args:
+            torch_dataset: Pytorch Dataset object (https://pytorch.org/tutorials/beginner/basics/data_tutorial.html).
+            output_path: desired path for .beton output file, "/" separated. E.g. "./my_dataset.beton"
+            fields: use this if you want to use Fields different from default.
+                The length and order must respect the "get_item" return of the torch Dataset.
+                If you want to overwrite only some fields, pass None to the remaining positions.
+            page_size: page size internally used. (optional argument of DatasetWriter object)
+            num_workers: Number of processes to use. (optional argument of DatasetWriter object)
+            indices: Use a subset of the dataset specified by indices. (optional argument of from_indexed_dataset method)
+            chunksize: Size of chunks processed by each worker during conversion.
+                (optional argument of from_indexed_dataset method)
+            shuffle_indices: Shuffle order of the dataset. (optional argument of from_indexed_dataset method)
         """
 
         # get default page size (4 * MIN_PAGE_SIZE): --> https://github.com/libffcv/ffcv/blob/main/ffcv/writer.py
@@ -71,7 +74,8 @@ try:
         # find dir
         dir_name = "/".join(output_path.split("/")[:-1])
         if not os.path.exists(dir_name):
-            print(f"[INFO] Creating output folder: {dir_name}")
+            if verbose:
+                LOGGER.info(f"Creating output folder: {dir_name}")
             os.makedirs(dir_name)
 
         # 2. check that dataset __get_item__ returns a tuple and get fields.
@@ -103,17 +107,25 @@ try:
             final_mapping[f"{field_to_str(type(f))}_{i}"] = f
 
         # official guidelines: https://docs.ffcv.io/writing_datasets.html
-        print(f"[INFO] creating ffcv dataset into file: {output_path}")
-        print(f"[INFO] number of items: {len(torch_dataset)}")
-        print(f"[INFO] ffcv fields of items: {final_fields}")
+        if verbose:
+            LOGGER.info(f"creating ffcv dataset into file: {output_path}")
+            LOGGER.info(f"number of items: {len(torch_dataset)}")  # type: ignore
+            LOGGER.info(f"ffcv fields of items: {final_fields}")
 
-        writer = DatasetWriter(output_path, final_mapping, page_size=page_size, num_workers=num_workers)
-        writer.from_indexed_dataset(
-            torch_dataset, indices=indices, chunksize=chunksize, shuffle_indices=shuffle_indices
+        writer = DatasetWriter(
+            output_path,
+            final_mapping,
+            page_size=page_size,
+            num_workers=num_workers,
         )
-
-        print(f"[INFO] Done.")
-        print(f"#" * 30)
+        writer.from_indexed_dataset(
+            torch_dataset,
+            indices=indices,  # type: ignore
+            chunksize=chunksize,
+            shuffle_indices=shuffle_indices,
+        )
+        if verbose:
+            LOGGER.info("Done.")
 
 except ImportError:
     pass

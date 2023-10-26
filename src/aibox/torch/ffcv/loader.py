@@ -1,5 +1,5 @@
 from aibox.logger import get_logger
-from aibox.torch.ffcv.utils import FFCVPipelineManager
+from aibox.torch.ffcv.dataset import FFCVDataset
 
 LOGGER = get_logger(__name__)
 
@@ -13,10 +13,10 @@ try:
             batch_size: int,
             num_workers: int,
             is_dist: bool,
-            train_manager: FFCVPipelineManager | None = None,
-            val_manager: FFCVPipelineManager | None = None,
-            test_manager: FFCVPipelineManager | None = None,
-            predict_manager: FFCVPipelineManager | None = None,
+            train_dataset: FFCVDataset | None = None,
+            val_dataset: FFCVDataset | None = None,
+            test_dataset: FFCVDataset | None = None,
+            predict_dataset: FFCVDataset | None = None,
             os_cache: bool = True,
             seed: int | None = None,
             **kwargs,
@@ -24,24 +24,26 @@ try:
             """
             Define PL DataModule (https://lightning.ai/docs/pytorch/stable/data/datamodule.html) object using
             FFCV Loader (https://docs.ffcv.io/making_dataloaders.html)
-            :param batch_size: batch_size for loader objects
-            :param num_workers: num workers for loader objects
-            :param is_dist: pass true if using more than one gpu/node
-            :param train_manager: manager for the training data, ignore if not loading train data
-            :param val_manager: manager for the validation data, ignore if not loading validation data
-            :param test_manager: manager for the test data, ignore if not loading test data
-            :param predict_manager: manager for the predict data, ignore if not loading predict data
-            :param os_cache: option for the ffcv loader, depending on your dataset.
-                            Read official docs: https://docs.ffcv.io/parameter_tuning.html
-            :param seed: fix data loading process to ensure reproducibility
-            :param kwargs: pass any extra argument of the FFCV Loader object using the format "type_pname", where type is
-            one of {train, val, test, predict} and type is one of {indices, custom_fields, drop_last, batches_ahead,
-            recompile}. Check out https://docs.ffcv.io/making_dataloaders.html for more information about the parameters.
+
+            Args:
+                batch_size: batch_size for loader objects
+                num_workers: num workers for loader objects
+                is_dist: pass true if using more than one gpu/node
+                train_dataset: dataset for the training data, ignore if not loading train data
+                val_dataset: dataset for the validation data, ignore if not loading validation data
+                test_dataset: dataset for the test data, ignore if not loading test data
+                predict_dataset: dataset for the predict data, ignore if not loading predict data
+                os_cache: option for the ffcv loader, depending on your dataset.
+                    Read official docs: https://docs.ffcv.io/parameter_tuning.html
+                seed: fix data loading process to ensure reproducibility
+                kwargs: pass any extra argument of the FFCV Loader object using the format "type_pname", where type is
+                    one of {train, val, test, predict} and type is one of {indices, custom_fields, drop_last, batches_ahead,
+                    recompile}. Check out https://docs.ffcv.io/making_dataloaders.html for more information about the parameters.
             """
 
             # initial condition must be satisfied
-            if train_manager is None and val_manager is None and test_manager is None and predict_manager is None:
-                raise AttributeError("At least one file between train, val, test and predict manager must be specified")
+            if train_dataset is None and val_dataset is None and test_dataset is None and predict_dataset is None:
+                raise AttributeError("At least one file between train, val, test and predict dataset must be specified")
 
             super().__init__()
 
@@ -54,10 +56,10 @@ try:
 
             self.kwargs = kwargs
 
-            self.train_manager = train_manager
-            self.val_manager = val_manager
-            self.test_manager = test_manager
-            self.predict_manager = predict_manager
+            self.train_dataset = train_dataset
+            self.val_dataset = val_dataset
+            self.test_dataset = test_dataset
+            self.predict_dataset = predict_dataset
 
         def prepare_data(self) -> None:
             """
@@ -69,88 +71,69 @@ try:
         def setup(self, stage: str) -> None:
             pass
 
+        def get_split_kwargs(self, split):
+            return dict(
+                indices=self.kwargs.get(f"{split}_indices", None),
+                custom_fields=self.kwargs.get(f"{split}_custom_fields", {}),
+                drop_last=self.kwargs.get(f"{split}_drop_last", True),
+                batches_ahead=self.kwargs.get(f"{split}_batches_ahead", 3),
+                recompile=self.kwargs.get(f"{split}_recompile", False),
+            )
+
         def train_dataloader(self):
-            if self.train_manager is not None:
+            if self.train_dataset is not None:
                 return Loader(
-                    self.train_manager.file_path,
+                    self.train_dataset.file_path.as_posix(),
                     batch_size=self.batch_size,
                     num_workers=self.num_workers,
                     os_cache=self.os_cache,
-                    order=self.train_manager.ordering,  # type: ignore
-                    pipelines=self.train_manager.pipeline,
+                    order=self.train_dataset.ordering,  # type: ignore
+                    pipelines=self.train_dataset.pipeline,
                     distributed=self.is_dist,
                     seed=self.seed,  # type: ignore
-                    indices=self.kwargs["train_indices"] if "train_indices" in self.kwargs.keys() else None,  # type: ignore
-                    custom_fields=self.kwargs["train_custom_fields"]
-                    if "train_custom_fields" in self.kwargs.keys()
-                    else {},
-                    drop_last=self.kwargs["train_drop_last"] if "train_drop_last" in self.kwargs.keys() else True,
-                    batches_ahead=self.kwargs["train_batches_ahead"]
-                    if "train_batches_ahead" in self.kwargs.keys()
-                    else 3,
-                    recompile=self.kwargs["train_recompile"] if "train_recompile" in self.kwargs.keys() else False,
+                    **self.get_split_kwargs("train"),
                 )
 
         def val_dataloader(self):
-            if self.val_manager is not None:
+            if self.val_dataset is not None:
                 return Loader(
-                    self.val_manager.file_path,
+                    self.val_dataset.file_path.as_posix(),
                     batch_size=self.batch_size,
                     num_workers=self.num_workers,
                     os_cache=self.os_cache,
-                    order=self.val_manager.ordering,  # type: ignore
-                    pipelines=self.val_manager.pipeline,
+                    order=self.val_dataset.ordering,  # type: ignore
+                    pipelines=self.val_dataset.pipeline,
                     distributed=self.is_dist,
                     seed=self.seed,  # type: ignore
-                    indices=self.kwargs["val_indices"] if "val_indices" in self.kwargs.keys() else None,  # type: ignore
-                    custom_fields=self.kwargs["val_custom_fields"] if "val_custom_fields" in self.kwargs.keys() else {},
-                    drop_last=self.kwargs["val_drop_last"] if "val_drop_last" in self.kwargs.keys() else True,
-                    batches_ahead=self.kwargs["val_batches_ahead"] if "val_batches_ahead" in self.kwargs.keys() else 3,
-                    recompile=self.kwargs["val_recompile"] if "val_recompile" in self.kwargs.keys() else False,
+                    **self.get_split_kwargs("val"),
                 )
 
         def test_dataloader(self):
-            if self.test_manager is not None:
+            if self.test_dataset is not None:
                 return Loader(
-                    self.test_manager.file_path,
+                    self.test_dataset.file_path.as_posix(),
                     batch_size=self.batch_size,
                     num_workers=self.num_workers,
                     os_cache=self.os_cache,
-                    order=self.test_manager.ordering,  # type: ignore
-                    pipelines=self.test_manager.pipeline,
+                    order=self.test_dataset.ordering,  # type: ignore
+                    pipelines=self.test_dataset.pipeline,
                     distributed=self.is_dist,
                     seed=self.seed,  # type: ignore
-                    indices=self.kwargs["test_indices"] if "test_indices" in self.kwargs.keys() else None,  # type: ignore
-                    custom_fields=self.kwargs["test_custom_fields"]
-                    if "test_custom_fields" in self.kwargs.keys()
-                    else {},
-                    drop_last=self.kwargs["test_drop_last"] if "test_drop_last" in self.kwargs.keys() else True,
-                    batches_ahead=self.kwargs["test_batches_ahead"]
-                    if "test_batches_ahead" in self.kwargs.keys()
-                    else 3,
-                    recompile=self.kwargs["test_recompile"] if "test_recompile" in self.kwargs.keys() else False,
+                    **self.get_split_kwargs("test"),
                 )
 
         def predict_dataloader(self):
-            if self.predict_manager is not None:
+            if self.predict_dataset is not None:
                 return Loader(
-                    self.predict_manager.file_path,
+                    self.predict_dataset.file_path.as_posix(),
                     batch_size=self.batch_size,
                     num_workers=self.num_workers,
                     os_cache=self.os_cache,
-                    order=self.predict_manager.ordering,  # type: ignore
-                    pipelines=self.predict_manager.pipeline,
+                    order=self.predict_dataset.ordering,  # type: ignore
+                    pipelines=self.predict_dataset.pipeline,
                     distributed=self.is_dist,
-                    seed=self.seed,
-                    indices=self.kwargs["predict_indices"] if "predict_indices" in self.kwargs.keys() else None,
-                    custom_fields=self.kwargs["predict_custom_fields"]
-                    if "predict_custom_fields" in self.kwargs.keys()
-                    else {},
-                    drop_last=self.kwargs["predict_drop_last"] if "predict_drop_last" in self.kwargs.keys() else True,
-                    batches_ahead=self.kwargs["predict_batches_ahead"]
-                    if "predict_batches_ahead" in self.kwargs.keys()
-                    else 3,
-                    recompile=self.kwargs["predict_recompile"] if "predict_recompile" in self.kwargs.keys() else False,
+                    seed=self.seed,  # type: ignore
+                    **self.get_split_kwargs("predict"),
                 )
 
 except ImportError:
