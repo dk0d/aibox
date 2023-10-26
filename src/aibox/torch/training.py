@@ -21,6 +21,7 @@ try:
     from ray import train as ray_train
     from ray._private.usage.usage_lib import TagKey, record_extra_usage_tag
     from ray.train.lightning import RayLightningEnvironment, RayDDPStrategy
+    from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback
     from ray.train.lightning._lightning_utils import get_worker_root_device
 
     class RayDDPStrategyWrapper(DDPStrategy, RayDDPStrategy):
@@ -45,7 +46,7 @@ try:
                 rank=self.global_rank,
             )
 
-    class RayLightningEnvironmentWrapper(RayLightningEnvironment, LightningEnvironment):
+    class RayLightningEnvironmentWrapper(LightningEnvironment, RayLightningEnvironment):
         """Setup Lightning DDP training environment for Ray cluster."""
 
         def __init__(self, *args, **kwargs):
@@ -75,23 +76,28 @@ try:
         def teardown(self):
             pass
 
+    class RayTuneReportCheckpointCallback(Callback, TuneReportCheckpointCallback):
+        pass
+
     class RayTrainReportCallback(Callback):
         """A simple callback that reports checkpoints to Ray on train epoch end."""
 
         def __init__(self) -> None:
             super().__init__()
+
             self.trial_name = ray_train.get_context().get_trial_name()
             self.local_rank = ray_train.get_context().get_local_rank()
-            self.tmpdir_prefix = os.path.join(tempfile.gettempdir(), self.trial_name)
-            if os.path.isdir(self.tmpdir_prefix) and self.local_rank == 0:
-                shutil.rmtree(self.tmpdir_prefix)
+            # self.tmpdir_prefix = os.path.join(tempfile.gettempdir(), self.trial_name)
+            # if os.path.isdir(self.tmpdir_prefix) and self.local_rank == 0:
+            #     shutil.rmtree(self.tmpdir_prefix)
 
-            record_extra_usage_tag(TagKey.TRAIN_LIGHTNING_RAYTRAINREPORTCALLBACK, "1")
+            record_extra_usage_tag(TagKey.TRAIN_LIGHTNING_RAYTRAINREPORTCALLBACK, "1")  # type: ignore
 
-        def on_train_epoch_end(self, trainer, pl_module) -> None:
-            # Creates a checkpoint dir with fixed name
-            tmpdir = os.path.join(self.tmpdir_prefix, str(trainer.current_epoch))
-            os.makedirs(tmpdir, exist_ok=True)
+
+        def on_validation_epoch_end(self, trainer, pl_module) -> None:
+            # # Creates a checkpoint dir with fixed name
+            # tmpdir = os.path.join(self.tmpdir_prefix, str(trainer.current_epoch))
+            # os.makedirs(tmpdir, exist_ok=True)
 
             # Fetch metrics
             metrics = trainer.callback_metrics
@@ -102,15 +108,16 @@ try:
             metrics["step"] = trainer.global_step
 
             # Save checkpoint to local
-            ckpt_path = os.path.join(tmpdir, "checkpoint.ckpt")
-            trainer.save_checkpoint(ckpt_path, weights_only=False)
+            # ckpt_path = os.path.join(tmpdir, "checkpoint.ckpt")
+            # trainer.save_checkpoint(ckpt_path, weights_only=False)
 
             # Report to train session
-            checkpoint = ray_train.Checkpoint.from_directory(tmpdir)
-            ray_train.report(metrics=metrics, checkpoint=checkpoint)
+            # checkpoint = ray_train.Checkpoint.from_directory(tmpdir)
+            # ray_train.report(metrics=metrics, checkpoint=checkpoint)
+            ray_train.report(metrics=metrics)
 
-            if self.local_rank == 0:
-                shutil.rmtree(tmpdir)
+            # if self.local_rank == 0:
+            #     shutil.rmtree(tmpdir)
 
 except ImportError:
     pass
@@ -225,7 +232,7 @@ def handle_slurm_param(config):
     return slurmMeta
 
 
-def init_trainer(config):
+def init_trainer(config, **kwargs):
     """
     Helper function to initialize trainer from config.
 
@@ -243,72 +250,19 @@ def init_trainer(config):
     if "fast_dev_run" not in trainerParams:
         trainerParams.update(fast_dev_run=config.debug)
 
-    logger = init_logger(config)
-
-    if logger is not None:
-        LOGGER.info(f"Logging to: {logger.log_dir}")
-        trainerParams.update(logger=logger)
-
-    try:
-        if "tuner" in config:
-            """
-            # Example config for tuner
-
-            [tuner]
-            num_epochs = 10
-            num_samples = 10
-            metrics.loss = "val/loss"
-            metrics.acc = "val/acc"
-            on = "validation_end"
-
-            # hyperparameter tuning
-            [tuner.search_spaces.model]
-            # keys must be the same as the arg keys of the model
-            hdim0.type = "choice"
-            hdim0.values = [16, 11, 9]
-
-            kernel_size.type = "randint"
-            kernel_size.values = [2, 12]
-
-            n_conv_layers_per_block.type = "randint"
-            n_conv_layers_per_block.values = [1, 3]
-
-            dropout_rate.type = "uniform"
-            dropout_rate.values = [0.1, 0.3]
-
-            initial_lr.type = "loguniform"
-            initial_lr.values = [1e-4, 1e-2]
-
-            # momentum.values = [0.9]
-            # momentum.search_space = "tune.choice"
-
-            l2_regularization.type = "loguniform"
-            l2_regularization.values = [1e-10, 1e-3]
-            """
-
-            config_update(
-                config,
-                "trainer.callbacks.ray_train_report",
-                dict(
-                    __classpath__="aibox.torch.training.RayTrainReportCallback",
-                ),
-            )
-            # tune_callback = RayTrainReportCallback(
-            #     # metrics=config.tuner.metrics,
-            #     # on=config.tuner.on,
-            # )
-            # callbacks.append(tune_callback)
-
-            trainerParams.update(enable_progress_bar=False)
-    except Exception as e:
-        LOGGER.error("error in init_trainer", exc_info=True)
-        pass
+    if kwargs.get('should_init_logger', True):
+        logger = init_logger(config)
+        if logger is not None:
+            LOGGER.info(f"Logging to: {logger.log_dir}")
+            trainerParams.update(logger=logger)
 
     callbacks = init_callbacks(config)
 
     # Remove progress bar if disabled -- raises error otherwise
     if "enable_progress_bar" in trainerParams and not trainerParams["enable_progress_bar"]:
         callbacks = [cb for cb in callbacks if not isinstance(cb, RichProgressBar)]
+
+    LOGGER.info(f"Callbacks: {[c.__class__.__name__.split('.')[-1] for c in callbacks]}")
 
     strategy = "auto"
 
@@ -322,8 +276,9 @@ def init_trainer(config):
             strategy = init_from_cfg(config.trainer.strategy)
         else:
             if "tuner" in config:
+                accelerator = "auto"
                 strategy = RayDDPStrategyWrapper(find_unused_parameters=False)
-                trainerParams.update(plugins=RayLightningEnvironmentWrapper())
+                trainerParams.update(plugins=[RayLightningEnvironmentWrapper()])
             elif torch.has_cuda and torch.cuda.device_count() > 1:
                 strategy = DDPStrategy(find_unused_parameters=False)
 
@@ -380,7 +335,7 @@ def init_model(config) -> L.LightningModule:
     return model
 
 
-def train(config) -> tuple[L.LightningModule, L.LightningDataModule, L.Trainer]:
+def train(config, **kwargs) -> tuple[L.LightningModule, L.LightningDataModule, L.Trainer]:
     """
     Run training from config.
 
@@ -391,7 +346,7 @@ def train(config) -> tuple[L.LightningModule, L.LightningDataModule, L.Trainer]:
         A tuple of model, datamodule, and trainer.
     """
 
-    trainer = init_trainer(config)
+    trainer = init_trainer(config, **kwargs)
 
     # Seed
     # Make sure to do this after logging is initialized
@@ -413,7 +368,7 @@ def train(config) -> tuple[L.LightningModule, L.LightningDataModule, L.Trainer]:
     return model, dm, trainer
 
 
-def train_and_test(config) -> EVALUATE_OUTPUT | None:
+def train_and_test(config, **kwargs) -> EVALUATE_OUTPUT | None:
     """
     Run training and testing from config.
 
@@ -424,7 +379,7 @@ def train_and_test(config) -> EVALUATE_OUTPUT | None:
         A tuple of model, datamodule, and trainer.
     """
 
-    model, dm, trainer = train(config)
+    model, dm, trainer = train(config, **kwargs)
 
     if not is_overridden("test_step", model):
         LOGGER.info("No testing step found on model. Skipping testing")

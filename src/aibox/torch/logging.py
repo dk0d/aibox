@@ -7,6 +7,11 @@ from aibox.config import config_to_dotlist
 from aibox.utils import as_path
 
 try:
+    import ray.train as ray_train
+except ImportError:
+    ray_train = None
+
+try:
     import shutil
 
     import numpy as np
@@ -88,6 +93,18 @@ try:
             if "tracking_uri" not in kwargs:
                 mlflow_logdir = f"file:{self.local_log_root / 'mlruns'}"
                 kwargs.update(tracking_uri=mlflow_logdir)
+
+            if ray_train is not None:
+                if kwargs.get("run_name", None) is None:
+                    trial_name = ray_train.get_context().get_trial_name()
+                    if trial_name is not None:
+                        kwargs.update(run_name=trial_name)
+
+                    try:
+                        run_id = (as_path(ray_train.get_context().get_trial_dir()) / "run_id.txt").read_text()
+                        kwargs.update(run_id=run_id)
+                    except Exception:
+                        pass
 
             super().__init__(**kwargs)
 

@@ -1,22 +1,32 @@
+import multiprocessing as mp
+import shutil
 from typing import Any
 
-import torch
 import numpy as np
-import shutil
-from omegaconf import OmegaConf
-import multiprocessing as mp
 
+# import ray.train as ray_train
+# from ray.train.lightning import prepare_trainer
+import torch
+from omegaconf import OmegaConf
+
+import ray
+from ray import air, tune
+from ray.air.config import CheckpointConfig
+from ray.air.integrations.mlflow import MLflowLoggerCallback
+
+from aibox.config import config_update, config_merge
 from aibox.logger import get_logger
 
 # import os
 # from aibox.slurm.hpc import HyperOptWrapper, SlurmCluster
-
 # from lightning import seed_everything
 # from lightning.strategies.ddp import DDPStrategy
-# from ray.tune.integration.lightning import TuneReportCallback
-from aibox.torch.training import build_cli_parser, train_and_test
-from aibox.utils import is_list, print
-from ray.air.integrations.mlflow import MLflowLoggerCallback, setup_mlflow
+# from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback
+from aibox.torch.training import (
+    build_cli_parser,
+    train_and_test,
+)
+from aibox.utils import as_path, is_list, print
 
 # os.environ["TUNE_DISABLE_AUTO_CALLBACK_LOGGERS"] = "1"
 
@@ -33,13 +43,33 @@ LOGGER = get_logger(__name__)
 def tune_train(tune_config, config):
     if isinstance(config, dict):
         config = OmegaConf.create(config)
-
-    setup_mlflow(tune_config, experiment_name=config.name, tracking_uri=config.logging.tracking_uri)
-
     # setup for config merge
+
+    config_update(
+        config,
+        "trainer.callbacks.ray_train_checkpoint_report",
+        dict(
+            __classpath__="aibox.torch.training.RayTuneReportCheckpointCallback",
+            # metrics={"loss": config.tuner.metric},
+            on="validation_end",
+            save_checkpoints=True,
+        ),
+    )
+    config.trainer.update(enable_progress_bar=False)
+
     tune_config = OmegaConf.from_dotlist([f"{k}={v}" for k, v in tune_config.items()])
-    train_config = OmegaConf.merge(config, tune_config)
-    results = train_and_test(train_config)
+    train_config = config_merge(config, tune_config)
+
+    # config_update(
+    #     config,
+    #     "trainer.callbacks.ray_train_report",
+    #     dict(
+    #         __classpath__="aibox.torch.training.RayTrainReportCallback",
+    #     ),
+    # )
+
+    # mlflow.pytorch.autolog(log_models=True)
+    results = train_and_test(train_config, should_init_logger=True)
     if isinstance(results, list):
         results = np.mean([r["test/loss"] for r in results])
     elif results is not None:
@@ -190,22 +220,76 @@ def gather_search_spaces_ray(config) -> dict[str, Any]:
     return tune_config
 
 
+class MLFlowTuneLogCallback(MLflowLoggerCallback):
+    def __init__(
+        self,
+        config,
+        tracking_uri: str | None = None,
+        *,
+        registry_uri: str | None = None,
+        experiment_name: str | None = None,
+        tags: dict | None = None,
+        tracking_token: str | None = None,
+        save_artifact: bool = False,
+    ):
+        super().__init__(
+            tracking_uri,
+            registry_uri=registry_uri,
+            experiment_name=experiment_name,
+            tags=tags,
+            tracking_token=tracking_token,
+            save_artifact=save_artifact,
+        )
+        self.config = config
+
+    def setup(self, *args, **kwarg):
+        super().setup(*args, **kwarg)
+        # self.mlflow_util.log_params(self.config)
+        if "tags" in self.config:
+            self.tags = self.config.tags
+
+    def log_dict(self, run_id, _dict, file_name):
+        if run_id and self.mlflow_util._run_exists(run_id):
+            client = self.mlflow_util._get_client()
+            client.log_dict(run_id=run_id, dictionary=_dict, artifact_file=file_name)
+        else:
+            self.mlflow_util._mlflow.log_dict(dictionary=_dict, artifact_file=file_name)
+
+    def log_trial_start(self, trial):
+        # Create run if not already exists.
+        if trial not in self._trial_runs:
+            # Set trial name in tags
+            tags = self.tags.copy()
+            tags["trial_name"] = str(trial)
+
+            run = self.mlflow_util.start_run(tags=tags, run_name=str(trial))
+            self._trial_runs[trial] = run.info.run_id
+
+        run_id = self._trial_runs[trial]
+        trial_dir = trial.logdir
+        if trial_dir is not None:
+            # Write run_id to file.
+            (as_path(trial_dir) / "run_id.txt").write_text(str(run_id))
+
+        # LOGGER.info(f"Experiment Name: {self.experiment_name}")
+        # LOGGER.info(f"Run ID: {self._trial_runs[trial]}")
+        # LOGGER.info(f"Trial Name: {ray_train.get_context().get_trial_name()}")
+
+
 def tune_ray(config):
     """
     Initialize Ray Tune and run hyperparameter tuning.
 
     Warning: RayTune support for hyperparameter tuning not fully tested yet
         Tested only on single, local machine
-        See more at [MLFlow Ray Example](https://docs.ray.io/en/latest/tune/examples/includes/mlflow_ptl_example.html)
+        See more at [MLFlow Ray Example](https://docs.ray.io/en/latest/tune/exmples/includes/mlflow_ptl_example.html)
 
     Attributes:
         config: A dictionary containing the configuration for the experiment.
 
     """
-    # import ray
-    from ray import air, tune
 
-    # ray.init()
+    ray.init()
 
     # from ray.tune.search.ax import AxSearch
     # from ray.air.integrations.mlflow import MLflowLoggerCallback, setup_mlflow
@@ -229,12 +313,19 @@ def tune_ray(config):
         ),
         run_config=air.RunConfig(
             name=config.name,
-            storage_path="~/ray_results",
+            storage_path=(as_path(config.project_root) / "logs/ray_results").as_posix(),
+            checkpoint_config=CheckpointConfig(
+                num_to_keep=1,
+                checkpoint_score_attribute=config.tuner.metric,
+                checkpoint_score_order=config.tuner.mode,
+            ),
             callbacks=[
-                # MLflowLoggerCallback(
-                #     experiment_name=config.name,
-                #     tracking_uri=config.logging.tracking_uri,
-                # ),
+                MLFlowTuneLogCallback(
+                    config=config,
+                    experiment_name=config.name,
+                    tracking_uri=config.logging.tracking_uri,
+                    save_artifact=True,
+                ),
             ],
         ),
         param_space=tune_config,

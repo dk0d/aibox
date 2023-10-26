@@ -99,6 +99,13 @@ class SmarterToTensor:
 
 
 class ImageBlend:
+    """ 
+    Blends images together using a specified blend mode 
+
+    the blend mode can be specified as a string or BlendMode enum
+
+    
+    """
     def __init__(
         self,
         blend_mode: BlendMode | str = BlendMode.composite,
