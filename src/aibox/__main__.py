@@ -9,6 +9,16 @@ except ImportError:
     fix_mlflow_artifact_paths = None
 
 
+def run(args, install):
+    import subprocess
+
+    if not install:
+        print(f"[blue bold]\n\\[Dry Run][/blue bold]\n{' '.join(args)}\n")
+    else:
+        print(f'[green bold]\n\\[Running][/green bold]\n{" ".join(args)}\n')
+        subprocess.run(args)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -17,6 +27,13 @@ def main():
         help="Path to root of mlruns folder. Rewrites all metadata for artifacts based on given path to mlruns folder",
         default=None,
     )
+    parser.add_argument(
+        "--ffcv",
+        "-ffcv",
+        action="store_true",
+        default=False,
+        help="Install FFCV and dependencies. Requires conda env.",
+    )
     args = parser.parse_args()
 
     if args.fix_mlflow_path is not None:
@@ -24,6 +41,36 @@ def main():
             fix_mlflow_artifact_paths(Path(args.fix_mlflow_path))
         else:
             print("Unable to import mlflow package")
+
+    if args.ffcv:
+        import shutil
+
+        if shutil.which("mamba") is not None:
+            command = "mamba"
+        else:
+            command = "conda"
+
+        command = [
+            command,
+            "cupy",
+            "pkg-config",
+            "libjpeg-turbo",
+            "opencv",
+            "numba",
+            "-c",
+            "conda-forge",
+            "-c",
+            "ffmpeg",
+        ]
+        run(command, install=True)
+        pip_cmd = [
+            "pip",
+            "install",
+            "ffcv",
+        ]
+        run(pip_cmd, install=True)
+
+        print("[green bold] FFCV installed successfully")
 
 
 if __name__ == "__main__":
