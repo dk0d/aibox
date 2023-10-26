@@ -60,8 +60,6 @@ def main():
             "numba",
             "-c",
             "conda-forge",
-            "-c",
-            "ffmpeg",
         ]
         run(command, install=True)
 
