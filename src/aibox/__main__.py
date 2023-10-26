@@ -52,6 +52,7 @@ def main():
 
         command = [
             command,
+            "install",
             "cupy",
             "pkg-config",
             "libjpeg-turbo",
@@ -63,6 +64,7 @@ def main():
             "ffmpeg",
         ]
         run(command, install=True)
+
         pip_cmd = [
             "pip",
             "install",
@@ -70,7 +72,7 @@ def main():
         ]
         run(pip_cmd, install=True)
 
-        print("[green bold] FFCV installed successfully")
+        # print("[green bold] FFCV installed successfully")
 
 
 if __name__ == "__main__":
