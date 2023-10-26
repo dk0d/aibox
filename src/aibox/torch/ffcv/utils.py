@@ -60,7 +60,10 @@ try:
 
     class FFCVPipelineManager:
         def __init__(
-            self, file_path: str, pipeline_transforms: list[list], ordering: OrderOption = OrderOption.SEQUENTIAL
+            self,
+            file_path: str,
+            pipeline_transforms: list[list],
+            ordering: OrderOption = OrderOption.SEQUENTIAL,
         ):
             """
             :param file_path: path to the .beton file that needs to be loaded.

@@ -76,11 +76,11 @@ try:
                     batch_size=self.batch_size,
                     num_workers=self.num_workers,
                     os_cache=self.os_cache,
-                    order=self.train_manager.ordering,
+                    order=self.train_manager.ordering,  # type: ignore
                     pipelines=self.train_manager.pipeline,
                     distributed=self.is_dist,
-                    seed=self.seed,
-                    indices=self.kwargs["train_indices"] if "train_indices" in self.kwargs.keys() else None,
+                    seed=self.seed,  # type: ignore
+                    indices=self.kwargs["train_indices"] if "train_indices" in self.kwargs.keys() else None,  # type: ignore
                     custom_fields=self.kwargs["train_custom_fields"]
                     if "train_custom_fields" in self.kwargs.keys()
                     else {},
@@ -98,11 +98,11 @@ try:
                     batch_size=self.batch_size,
                     num_workers=self.num_workers,
                     os_cache=self.os_cache,
-                    order=self.val_manager.ordering,
+                    order=self.val_manager.ordering,  # type: ignore
                     pipelines=self.val_manager.pipeline,
                     distributed=self.is_dist,
-                    seed=self.seed,
-                    indices=self.kwargs["val_indices"] if "val_indices" in self.kwargs.keys() else None,
+                    seed=self.seed,  # type: ignore
+                    indices=self.kwargs["val_indices"] if "val_indices" in self.kwargs.keys() else None,  # type: ignore
                     custom_fields=self.kwargs["val_custom_fields"] if "val_custom_fields" in self.kwargs.keys() else {},
                     drop_last=self.kwargs["val_drop_last"] if "val_drop_last" in self.kwargs.keys() else True,
                     batches_ahead=self.kwargs["val_batches_ahead"] if "val_batches_ahead" in self.kwargs.keys() else 3,
@@ -116,11 +116,11 @@ try:
                     batch_size=self.batch_size,
                     num_workers=self.num_workers,
                     os_cache=self.os_cache,
-                    order=self.test_manager.ordering,
+                    order=self.test_manager.ordering,  # type: ignore
                     pipelines=self.test_manager.pipeline,
                     distributed=self.is_dist,
-                    seed=self.seed,
-                    indices=self.kwargs["test_indices"] if "test_indices" in self.kwargs.keys() else None,
+                    seed=self.seed,  # type: ignore
+                    indices=self.kwargs["test_indices"] if "test_indices" in self.kwargs.keys() else None,  # type: ignore
                     custom_fields=self.kwargs["test_custom_fields"]
                     if "test_custom_fields" in self.kwargs.keys()
                     else {},
@@ -138,7 +138,7 @@ try:
                     batch_size=self.batch_size,
                     num_workers=self.num_workers,
                     os_cache=self.os_cache,
-                    order=self.predict_manager.ordering,
+                    order=self.predict_manager.ordering,  # type: ignore
                     pipelines=self.predict_manager.pipeline,
                     distributed=self.is_dist,
                     seed=self.seed,
