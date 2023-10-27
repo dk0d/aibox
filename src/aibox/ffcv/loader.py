@@ -1,5 +1,5 @@
 from aibox.logger import get_logger
-from aibox.torch.ffcv.dataset import FFCVDataset
+from aibox.ffcv.dataset import FFCVDataset
 
 LOGGER = get_logger(__name__)
 

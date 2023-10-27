@@ -1,7 +1,7 @@
 try:
     import os
 
-    from aibox.torch.ffcv.utils import field_to_str, obj_to_field
+    from aibox.ffcv.utils import field_to_str, obj_to_field
     from ffcv import DatasetWriter
     from torch.utils.data import Dataset
 

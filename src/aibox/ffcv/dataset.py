@@ -1,6 +1,6 @@
 from torch.utils.data import Dataset
 from pathlib import Path
-from aibox.torch.ffcv.beton import create_beton_wrapper
+from aibox.ffcv.beton import create_beton_wrapper
 from aibox.config import Config, init_from_cfg
 from aibox.utils import as_path
 from ffcv.loader import OrderOption
