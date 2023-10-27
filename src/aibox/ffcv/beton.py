@@ -2,10 +2,10 @@ try:
     import os
 
     from aibox.ffcv.utils import field_to_str, obj_to_field
-    from ffcv import DatasetWriter
+    from aibox.logger import get_logger
     from torch.utils.data import Dataset
 
-    from aibox.logger import get_logger
+    from ffcv import DatasetWriter
 
     LOGGER = get_logger(__name__)
 
@@ -104,7 +104,7 @@ try:
         # 2. create dict of fields
         final_mapping = {}
         for i, f in enumerate(final_fields):
-            final_mapping[f"{field_to_str(type(f))}_{i}"] = f
+            final_mapping[f"{field_to_str(f)}_{i}"] = f
 
         # official guidelines: https://docs.ffcv.io/writing_datasets.html
         if verbose:

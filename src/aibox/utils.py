@@ -1,9 +1,13 @@
+import os
 from collections.abc import Sequence
 from pathlib import Path
 from pprint import pformat
 from typing import TypeGuard, TypeVar
+
+import tqdm
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from rich import print as rprint
+
 from aibox.logger import get_logger
 
 # import numpy as np
@@ -19,6 +23,48 @@ def is_list(x) -> bool:
 
 def is_dict(x) -> bool:
     return OmegaConf.is_dict(x) or isinstance(x, dict)
+
+
+def get_files(folder: Path | str, allowed_exts: list[str] | None, desc=None):
+    """Recursively gets_files in directory. faster than Path.glob, walk, etc."""
+
+    if not Path(folder).exists():
+        LOGGER.warn(f'Folder does not exist: {folder}')
+        return
+
+    check_ext = allowed_exts is not None and len(allowed_exts) > 0
+    if check_ext:
+        # remove period at beginning if present
+        allowed_exts = [a[1:] if a.startswith(".") else a for a in allowed_exts]
+
+    if desc is None:
+        progress = None
+    else:
+        progress = tqdm.tqdm(desc=desc)
+
+    def _get_files(_folder):
+        with os.scandir(_folder) as scan:
+            for item in scan:
+                if item.is_dir():
+                    for p in _get_files(item):
+                        yield p
+                    continue
+                p = None
+                if check_ext:
+                    if item.name.split(".")[-1] in allowed_exts:
+                        p = item.path
+                else:
+                    p = item.path
+                if p is not None and progress is not None:
+                    progress.update()
+                if p is not None:
+                    yield p
+
+    for p in _get_files(folder):
+        yield p
+
+    if progress is not None:
+        progress.close()
 
 
 def nearest_square_grid(num: int) -> tuple[int, int]:

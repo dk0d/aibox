@@ -2,19 +2,19 @@ from typing import Any
 
 import numpy as np
 import torch
-from PIL.Image import Image
 from aibox.logger import get_logger
+from PIL.Image import Image
 
 LOGGER = get_logger(__name__)
 try:
     from ffcv.fields import (
-        Field,
-        RGBImageField,
         BytesField,
-        IntField,
+        Field,
         FloatField,
-        NDArrayField,
+        IntField,
         JSONField,
+        NDArrayField,
+        RGBImageField,
         TorchTensorField,
     )
 

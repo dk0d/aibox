@@ -1,10 +1,11 @@
-from aibox.logger import get_logger
 from aibox.ffcv.dataset import FFCVDataset
+from aibox.logger import get_logger
 
 LOGGER = get_logger(__name__)
 
 try:
     import lightning as L
+
     from ffcv.loader import Loader
 
     class FFCVDataModule(L.LightningDataModule):
@@ -12,7 +13,7 @@ try:
             self,
             batch_size: int,
             num_workers: int,
-            is_dist: bool,
+            is_distributed: bool,
             train_dataset: FFCVDataset | None = None,
             val_dataset: FFCVDataset | None = None,
             test_dataset: FFCVDataset | None = None,
@@ -51,7 +52,7 @@ try:
             self.num_workers = num_workers
             self.seed = seed
             self.os_cache = os_cache
-            self.is_dist = is_dist
+            self.is_dist = is_distributed
             self.kwargs = kwargs
 
             self.train_dataset = train_dataset
