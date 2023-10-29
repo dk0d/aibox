@@ -93,7 +93,6 @@ try:
 
             record_extra_usage_tag(TagKey.TRAIN_LIGHTNING_RAYTRAINREPORTCALLBACK, "1")  # type: ignore
 
-
         def on_validation_epoch_end(self, trainer, pl_module) -> None:
             # # Creates a checkpoint dir with fixed name
             # tmpdir = os.path.join(self.tmpdir_prefix, str(trainer.current_epoch))
@@ -250,7 +249,7 @@ def init_trainer(config, **kwargs):
     if "fast_dev_run" not in trainerParams:
         trainerParams.update(fast_dev_run=config.debug)
 
-    if kwargs.get('should_init_logger', True):
+    if kwargs.get("should_init_logger", True):
         logger = init_logger(config)
         if logger is not None:
             LOGGER.info(f"Logging to: {logger.log_dir}")
