@@ -135,6 +135,22 @@ try:
                 self._tb_logger.log_metrics(metrics, step)
 
         @rank_zero_only
+        def log_artifact(
+            self,
+            local_path: str,
+            artifact_path=None,
+        ):
+            self.experiment.log_artifact(self.run_id, local_path, artifact_path)
+
+        @rank_zero_only
+        def log_artifacts(
+            self,
+            local_path: str,
+            artifact_path=None,
+        ):
+            self.experiment.log_artifacts(self.run_id, local_path, artifact_path)
+
+        @rank_zero_only
         def log_graph(self, *args, **kwargs):
             if self.enable_tb_logging and self._tb_logger is not None:
                 return self._tb_logger.log_graph(*args, **kwargs)
