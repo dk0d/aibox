@@ -122,10 +122,10 @@ try:
         @rank_zero_only
         def log_hyperparams(self, params: dict[str, Any] | Namespace | DictConfig) -> None:
             if isinstance(params, DictConfig):
-                container = dict(**OmegaConf.to_container(params, resolve=True))
+                container = dict(**OmegaConf.to_container(params, resolve=True))  # type: ignore
                 # log config as an artifact for easier instantiation of model from the config
                 self.experiment.log_dict(self.run_id, container, "config.yml")
-                params = dict(**config_to_dotlist(params))
+                params = dict(**config_to_dotlist(params))  # type: ignore
             super().log_hyperparams(params)
 
         @rank_zero_only
