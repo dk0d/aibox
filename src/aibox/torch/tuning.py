@@ -42,7 +42,7 @@ from aibox.utils import as_path, is_list, print
 LOGGER = get_logger(__name__)
 
 
-def train_func(tune_config, config):
+def default_tune_func(tune_config, config):
     if isinstance(config, dict):
         config = OmegaConf.create(config)
     # setup for config merge
@@ -278,7 +278,7 @@ class MLFlowTuneLogCallback(MLflowLoggerCallback):
         # LOGGER.info(f"Trial Name: {ray_train.get_context().get_trial_name()}")
 
 
-def tune_ray(config):
+def tune_ray(config, tune_fn=None):
     """
     Initialize Ray Tune and run hyperparameter tuning.
 
@@ -298,7 +298,8 @@ def tune_ray(config):
 
     # LOGGER.info(f"TUNE Logging to: {config.logging.tracking_uri}")
     param_space = gather_search_spaces_ray(config)
-    trainable = tune.with_parameters(train_func, config=config)
+    tune_fn = tune_fn or default_tune_func
+    trainable = tune.with_parameters(tune_fn, config=config)
     if shutil.which("sbatch") is not None:
         n_cpu = config.slurm.cpus_per_task
         n_gpu = config.slurm.ngpu
