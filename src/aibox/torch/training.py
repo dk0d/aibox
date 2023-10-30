@@ -1,7 +1,5 @@
 # %%
 import os
-import shutil
-import tempfile
 from typing import Any
 
 import lightning as L

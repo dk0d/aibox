@@ -3,18 +3,20 @@ import shutil
 from typing import Any
 
 import numpy as np
+import ray
+import ray.train.lightning
 
 # import ray.train as ray_train
 # from ray.train.lightning import prepare_trainer
 import torch
 from omegaconf import OmegaConf
-
-import ray
 from ray import air, tune
 from ray.air.config import CheckpointConfig
 from ray.air.integrations.mlflow import MLflowLoggerCallback
+from ray.train import ScalingConfig
+from ray.train.torch import TorchTrainer
 
-from aibox.config import config_update, config_merge
+from aibox.config import config_merge, config_update
 from aibox.logger import get_logger
 
 # import os
@@ -40,7 +42,7 @@ from aibox.utils import as_path, is_list, print
 LOGGER = get_logger(__name__)
 
 
-def tune_train(tune_config, config):
+def train_func(tune_config, config):
     if isinstance(config, dict):
         config = OmegaConf.create(config)
     # setup for config merge
@@ -295,8 +297,8 @@ def tune_ray(config):
     # from ray.air.integrations.mlflow import MLflowLoggerCallback, setup_mlflow
 
     # LOGGER.info(f"TUNE Logging to: {config.logging.tracking_uri}")
-    tune_config = gather_search_spaces_ray(config)
-    trainable = tune.with_parameters(tune_train, config=config)
+    param_space = gather_search_spaces_ray(config)
+    trainable = tune.with_parameters(train_func, config=config)
     if shutil.which("sbatch") is not None:
         n_cpu = config.slurm.cpus_per_task
         n_gpu = config.slurm.ngpu
@@ -328,7 +330,7 @@ def tune_ray(config):
                 ),
             ],
         ),
-        param_space=tune_config,
+        param_space=param_space,
     )
     results = tuner.fit()
     return results
