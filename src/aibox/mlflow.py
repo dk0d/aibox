@@ -16,6 +16,7 @@ from aibox.config import (
 )
 from aibox.logger import get_logger
 from aibox.torch.utils import get_device
+from aibox.utils import as_path
 
 LOGGER = get_logger(__name__)
 
@@ -270,6 +271,14 @@ class MLFlowHelper:
 
     def log_artifacts(self, run_id, local_dir, artifact_dir=None):
         self.client.log_artifacts(run_id, local_dir, artifact_path=artifact_dir)
+
+    def get_artifact_paths(self, run: Run | str):
+        run_id: str = run.info.run_id if isinstance(run, Run) else run
+        return self.client.list_artifacts(run_id)
+
+    def get_artifact(self, run: Run | str, path: str, dst_path: str | None = None) -> Path:
+        run_id: str = run.info.run_id if isinstance(run, Run) else run
+        return as_path(self.client.download_artifacts(run_id, path, dst_path))
 
 
 @dataclass
