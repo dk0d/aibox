@@ -5,8 +5,10 @@ try:
     from torchvision.transforms import Compose, Lambda, ToPILImage, ToTensor
 
 except ImportError:
+    import sys
+
     print("pytorch required for these utilities")
-    exit(1)
+    sys.exit(1)
 
 from enum import Enum
 
@@ -99,13 +101,14 @@ class SmarterToTensor:
 
 
 class ImageBlend:
-    """ 
-    Blends images together using a specified blend mode 
+    """
+    Blends images together using a specified blend mode
 
     the blend mode can be specified as a string or BlendMode enum
 
-    
+
     """
+
     def __init__(
         self,
         blend_mode: BlendMode | str = BlendMode.composite,

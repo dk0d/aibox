@@ -137,5 +137,7 @@ try:
                 )
 
 except ImportError:
+    import sys
+
     LOGGER.error("FFCV or FFCV Dependencies are not installed. Please see https://ffcv.io for more.")
-    exit(0)
+    sys.exit(0)

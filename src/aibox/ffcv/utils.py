@@ -62,5 +62,7 @@ try:
             raise AttributeError(f"FFCV dataset can not manage {type(obj)} objects")
 
 except ImportError:
+    import sys
+
     LOGGER.error("FFCV or FFCV Dependencies are not installed. Please see https://ffcv.io for more.")
-    exit(0)
+    sys.exit(0)

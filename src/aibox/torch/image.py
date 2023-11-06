@@ -3,8 +3,10 @@ try:
     from torchvision.transforms import ToPILImage, ToTensor
     from torchvision.utils import make_grid
 except ImportError:
+    import sys
+
     print("pytorch required for these utilities")
-    exit(1)
+    sys.exit(1)
 
 from typing import Tuple, TypeGuard
 

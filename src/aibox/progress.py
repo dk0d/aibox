@@ -89,7 +89,7 @@ def track(
         description (str, optional): Description of task show next to progress bar. Defaults to "Working".
         total: (float, optional): Total number of steps. Default is len(sequence).
         auto_refresh (bool, optional): Automatic refresh, disable to force a refresh after each iteration. Default is True.
-        transient: (bool, optional): Clear the progress on exit. Defaults to False.
+        transient: (bool, optional): Clear the progress on sys.exit. Defaults to False.
         console (Console, optional): Console to write to. Default creates internal Console instance.
         refresh_per_second (float): Number of times per second to refresh the progress information. Defaults to 10.
         style (StyleType, optional): Style for the bar background. Defaults to "bar.back".

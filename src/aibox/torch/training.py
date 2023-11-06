@@ -175,7 +175,7 @@ def init_logger(config, log_hyperparams=True) -> Logger | None:
         except Exception as e:  # TODO: Better handling of when logger init fails
             LOGGER.error(f"Failed to initialize logger: {config.logging}")
             LOGGER.error(e, exc_info=True)
-            exit(1)
+            sys.exit(1)
     return None
 
 
@@ -408,8 +408,10 @@ def main(args=None):
     config = cli.parse_args(args=args)
 
     if config.name is None:
+        import sys
+
         LOGGER.error("Experiment name must be specified")
-        exit(1)
+        sys.exit(1)
 
     results = train_and_test(config)
 

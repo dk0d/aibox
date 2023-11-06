@@ -413,7 +413,7 @@ def tune_ray(config, tune_fn=None):
 #
 #     if config.exp_name is None:
 #         LOGGER.error("Experiment name must be specified")
-#         exit(1)
+#         sys.exit(1)
 #
 #     match mode:
 #         case "ray":
@@ -459,8 +459,10 @@ def main(args=None):
     config = cli.parse_args(args)
 
     if config.name is None:
+        import sys
+
         LOGGER.error("Experiment name must be specified")
-        exit(1)
+        sys.exit(1)
 
     tune_ray(config)
 

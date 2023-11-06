@@ -15,7 +15,7 @@ try:
 
 except ImportError:
     print("lightning.pytorch required to import these utilities")
-    exit(1)
+    sys.exit(1)
 
 
 def nondefault_trainer_args(opt):
@@ -322,9 +322,11 @@ class LightningModuleFromConfig(L.LightningModule):
             else:
                 self.loss_fn = init_from_cfg(loss)
         except Exception as e:
+            import sys
+
             print(f"[red bold]Error instantiating config: {loss}")
             print(f"Exception {e}")
-            exit(0)
+            sys.exit(0)
 
         self.model = init_from_cfg(model, **kwargs)
         self.optimizers_cfg = optimizers

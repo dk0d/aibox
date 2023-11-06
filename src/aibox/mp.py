@@ -95,7 +95,7 @@ def multiprocess(
         with ProcessPool(**poolKwds) as pool:
             # with ProcessPool(**poolKwds) as pool:
             futures = {pool.submit(func, **a) for a in itertools.islice(iterArgs, maxJobs)}
-            done = []  # to help with graceful exit
+            done = []  # to help with graceful sys.exit
             try:
                 while futures:
                     done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)

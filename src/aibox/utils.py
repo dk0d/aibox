@@ -29,7 +29,7 @@ def get_files(folder: Path | str, allowed_exts: list[str] | None, desc=None):
     """Recursively gets_files in directory. faster than Path.glob, walk, etc."""
 
     if not Path(folder).exists():
-        LOGGER.warn(f'Folder does not exist: {folder}')
+        LOGGER.warn(f"Folder does not exist: {folder}")
         return
 
     check_ext = allowed_exts is not None and len(allowed_exts) > 0

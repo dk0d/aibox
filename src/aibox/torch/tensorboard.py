@@ -7,8 +7,10 @@ try:
     from torch.utils.tensorboard.writer import SummaryWriter
     from torchvision.io.image import ImageReadMode, decode_image
 except ImportError:
+    import sys
+
     print("pytorch required for these utilities")
-    exit(1)
+    sys.exit(1)
 
 import io
 import itertools

@@ -2,8 +2,10 @@ try:
     import torch
     import torch.multiprocessing as mp
 except ImportError:
+    import sys
+
     print("pytorch required for these utilities")
-    exit(1)
+    sys.exit(1)
 
 
 def get_num_workers(zero_if_mps=True):

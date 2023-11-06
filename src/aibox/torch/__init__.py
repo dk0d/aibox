@@ -1,5 +1,7 @@
 try:
     import torch
 except ImportError:
+    import sys
+
     print("pytorch required for these utilities")
-    exit(1)
+    sys.exit(1)
