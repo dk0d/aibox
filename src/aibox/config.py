@@ -116,6 +116,18 @@ def config_from_dict(d: dict) -> DictConfig:
     return c
 
 
+def config_from_namespace(namespace) -> Config:
+    import argparse
+
+    new = {}
+    for k, v in vars(namespace).items():
+        if isinstance(v, argparse.Namespace):
+            new[k] = config_from_namespace(v)
+        else:
+            new[k] = v
+    return config_from_dict(new)
+
+
 def config_from_dotlist(dotlist: list[str]):
     return OmegaConf.from_dotlist(dotlist)
 

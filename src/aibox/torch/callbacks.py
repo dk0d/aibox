@@ -298,6 +298,8 @@ class LogImagesCallback(L.Callback):
 
             with torch.no_grad():
                 images: list[torch.Tensor] = pl_module.get_log_images(batch, split=split, **self.get_log_images_kwargs)
+                if isinstance(images, dict):
+                    image_names, images = list(images.keys()), list(images.values())
 
             _logger_log_images = self._logger_log_images.get(logger, self._NOOP_log)
 

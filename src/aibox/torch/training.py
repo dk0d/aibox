@@ -22,16 +22,19 @@ try:
     from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback
     from ray.train.lightning._lightning_utils import get_worker_root_device
 
-    class RayDDPStrategyWrapper(DDPStrategy, RayDDPStrategy):
+    class RayDDPStrategyWrapper(RayDDPStrategy, DDPStrategy):
         """Subclass of DDPStrategy to ensure compatibility with Ray orchestration.
 
         For a full list of initialization arguments, please refer to:
         https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.strategies.DDPStrategy.html
+
+        Note that `process_group_backend`, `timeout`, and `start_method` are disabled here,
+        please specify these arguments in :class:`~ray.train.torch.TorchConfig` instead.
         """
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            record_extra_usage_tag(TagKey.TRAIN_LIGHTNING_RAYDDPSTRATEGY, "1")  # type: ignore
+            record_extra_usage_tag(TagKey.TRAIN_LIGHTNING_RAYDDPSTRATEGY, "1")
 
         @property
         def root_device(self) -> torch.device:
@@ -44,7 +47,7 @@ try:
                 rank=self.global_rank,
             )
 
-    class RayLightningEnvironmentWrapper(LightningEnvironment, RayLightningEnvironment):
+    class RayLightningEnvironmentWrapper(RayLightningEnvironment, LightningEnvironment):
         """Setup Lightning DDP training environment for Ray cluster."""
 
         def __init__(self, *args, **kwargs):
