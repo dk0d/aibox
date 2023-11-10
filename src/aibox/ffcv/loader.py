@@ -1,4 +1,5 @@
 from aibox.ffcv.dataset import FFCVDataset
+from aibox.config import Config, init_from_cfg
 from aibox.logger import get_logger
 
 LOGGER = get_logger(__name__)
@@ -135,6 +136,26 @@ try:
                     seed=self.seed,  # type: ignore
                     **self.get_split_kwargs("predict"),
                 )
+
+    class FFCVDataModuleFromConfig(FFCVDataModule):
+        def __init__(
+            self,
+            *,
+            train_dataset: Config | None = None,
+            val_dataset: Config | None = None,
+            test_dataset: Config | None = None,
+            predict_dataset: Config | None = None,
+            **kwargs,
+        ):
+            if train_dataset is not None:
+                kwargs.update(train_dataset=init_from_cfg(train_dataset))
+            if val_dataset is not None:
+                kwargs.update(val_dataset=init_from_cfg(val_dataset))
+            if test_dataset is not None:
+                kwargs.update(test_dataset=init_from_cfg(test_dataset))
+            if predict_dataset is not None:
+                kwargs.update(predict_dataset=init_from_cfg(predict_dataset))
+            super().__init__(**kwargs)
 
 except ImportError:
     import sys
