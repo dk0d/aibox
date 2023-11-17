@@ -1,9 +1,10 @@
 try:
-    import os
+    from pathlib import Path
 
     from aibox.ffcv.utils import field_to_str, obj_to_field
     from aibox.logger import get_logger
     from torch.utils.data import Dataset
+    from aibox.utils import as_path
 
     from ffcv import DatasetWriter
 
@@ -11,7 +12,7 @@ try:
 
     def create_beton_wrapper(
         torch_dataset: Dataset,
-        output_path: str,
+        output_path: str | Path,
         fields: tuple | None = None,
         page_size: int | None = None,
         num_workers: int = -1,
@@ -66,17 +67,17 @@ try:
         page_size = 4 * (2**21) if page_size is None else page_size
 
         # 1. format output path
-        assert len(output_path) > 0, "param: output_path cannot be an empty string"
+        # assert len(output_path) > 0, "param: output_path cannot be an empty string"
 
-        if not output_path.endswith(".beton"):
-            output_path = f"{output_path}.beton"
+        output_path = as_path(output_path)
+
+        if not output_path.suffix != ".beton":
+            output_path = output_path.with_suffix(".beton")
 
         # find dir
-        dir_name = "/".join(output_path.split("/")[:-1])
-        if not os.path.exists(dir_name):
-            if verbose:
-                LOGGER.info(f"Creating output folder: {dir_name}")
-            os.makedirs(dir_name)
+        if not output_path.parent.exists():
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            LOGGER.info(f"Creating output folder: {output_path.parent}")
 
         # 2. check that dataset __get_item__ returns a tuple and get fields.
         tuple_obj = torch_dataset[0]
@@ -113,7 +114,7 @@ try:
             LOGGER.info(f"ffcv fields of items: {final_fields}")
 
         writer = DatasetWriter(
-            output_path,
+            output_path.as_posix(),
             final_mapping,
             page_size=page_size,
             num_workers=num_workers,

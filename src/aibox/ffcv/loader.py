@@ -1,20 +1,21 @@
-from aibox.ffcv.dataset import FFCVDataset
+import multiprocessing as mp
 from aibox.config import Config, init_from_cfg
+from aibox.ffcv.dataset import FFCVDataset
 from aibox.logger import get_logger
+
 
 LOGGER = get_logger(__name__)
 
 try:
     import lightning as L
-
     from ffcv.loader import Loader
 
     class FFCVDataModule(L.LightningDataModule):
         def __init__(
             self,
             batch_size: int,
-            num_workers: int,
-            is_distributed: bool,
+            is_distributed: bool = False,
+            num_workers: int | None = None,
             train_dataset: FFCVDataset | None = None,
             val_dataset: FFCVDataset | None = None,
             test_dataset: FFCVDataset | None = None,
@@ -30,7 +31,7 @@ try:
             Args:
                 batch_size: batch_size for loader objects
                 num_workers: num workers for loader objects
-                is_dist: pass true if using more than one gpu/node
+                is_distributed: pass true if using more than one gpu/node
                 train_dataset: dataset for the training data, ignore if not loading train data
                 val_dataset: dataset for the validation data, ignore if not loading validation data
                 test_dataset: dataset for the test data, ignore if not loading test data
@@ -50,7 +51,7 @@ try:
             super().__init__()
 
             self.batch_size = batch_size
-            self.num_workers = num_workers
+            self.num_workers = num_workers if num_workers is not None else mp.cpu_count()
             self.seed = seed
             self.os_cache = os_cache
             self.is_dist = is_distributed
@@ -147,6 +148,7 @@ try:
             predict_dataset: Config | None = None,
             **kwargs,
         ):
+            # Assumed to be FFCVDatasetFromConfigs
             if train_dataset is not None:
                 kwargs.update(train_dataset=init_from_cfg(train_dataset))
             if val_dataset is not None:
@@ -155,6 +157,7 @@ try:
                 kwargs.update(test_dataset=init_from_cfg(test_dataset))
             if predict_dataset is not None:
                 kwargs.update(predict_dataset=init_from_cfg(predict_dataset))
+
             super().__init__(**kwargs)
 
 except ImportError:

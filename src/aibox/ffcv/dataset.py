@@ -10,7 +10,7 @@ from ffcv.reader import Reader
 class FFCVDataset(Dataset):
     def __init__(
         self,
-        dataset_config: Config,
+        dataset: Dataset,
         file_path: Path | str,
         pipeline_transforms: list[list],
         ordering: OrderOption = OrderOption.SEQUENTIAL,
@@ -52,7 +52,7 @@ class FFCVDataset(Dataset):
         """
 
         super().__init__()
-        self.dataset = init_from_cfg(dataset_config)
+        self.dataset = dataset
         self.file_path = as_path(file_path)
         if not self.file_path.exists():
             create_beton_wrapper(
@@ -81,3 +81,8 @@ class FFCVDataset(Dataset):
         for name, transforms in zip(field_names, pipeline_transforms):
             if transforms is not None:
                 self.pipeline[name] = transforms
+
+
+class FFCVDatasetFromConfig(FFCVDataset):
+    def __init__(self, dataset_config: Config, **kwargs):
+        super().__init__(dataset=init_from_cfg(dataset_config), **kwargs)
