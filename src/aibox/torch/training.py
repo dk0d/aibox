@@ -267,7 +267,7 @@ def init_trainer(config, **kwargs):
     strategy = "auto"
 
     # Set accelerator
-    if torch.has_mps:
+    if torch.backends.mps.is_built():
         accelerator = "mps"
     else:
         accelerator = "gpu"
@@ -279,7 +279,7 @@ def init_trainer(config, **kwargs):
                 accelerator = "auto"
                 strategy = RayDDPStrategyWrapper(find_unused_parameters=False)
                 trainerParams.update(plugins=[RayLightningEnvironmentWrapper()])
-            elif torch.has_cuda and torch.cuda.device_count() > 1:
+            elif torch.backends.cuda.is_built() and torch.cuda.device_count() > 1:
                 strategy = DDPStrategy(find_unused_parameters=False)
 
     if "profiler" in config.trainer:
@@ -297,7 +297,7 @@ def init_trainer(config, **kwargs):
         profiler=profiler,
     )
 
-    if not torch.has_cuda and not torch.has_mps:
+    if not torch.backends.cuda.is_built() and not torch.backends.mps.is_built():
         trainerParams.pop("accelerator")
         trainerParams.pop("devices")
         trainerParams.pop("strategy")
