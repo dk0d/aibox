@@ -1,6 +1,23 @@
 import numpy as np
 
 
+def cv_read_image(path, **kwargs):
+    """helps read an image using opencv
+
+    returns the image in RGB format
+
+    Args:
+        path (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    import cv2 as cv
+
+    img = cv.imread(path, **kwargs)
+    return cv.cvtColor(img, cv.COLOR_BGR2RGB)
+
+
 def get_dominant_colors(img, n_colors=5):
     """helps get the dominant colors in an image
 
@@ -25,8 +42,3 @@ def get_dominant_colors(img, n_colors=5):
     labels = labels.reshape((height, width))
     color_palette = np.uint8(clt.cluster_centers_)
     return quant, color_palette, labels
-
-
-
-
-
