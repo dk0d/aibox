@@ -25,7 +25,58 @@ def is_dict(x) -> bool:
     return OmegaConf.is_dict(x) or isinstance(x, dict)
 
 
-def get_files(folder: Path | str, allowed_exts: list[str] | None, desc=None):
+def get_dirs(
+    root: Path | str,
+    filter: str | None = None,
+    desc=None,
+):
+    """Recursively gets directories in directory. faster than Path.glob, walk, etc."""
+
+    if not Path(root).exists():
+        LOGGER.warn(f"Folder does not exist: {root}")
+        return
+
+    if desc is None:
+        progress = None
+    else:
+        progress = tqdm.tqdm(desc=desc)
+
+    def _get_dirs(_folder):
+        with os.scandir(_folder) as scan:
+            for item in scan:
+                if not item.is_dir():
+                    continue
+
+                d = None
+                if filter is not None:
+                    import re
+
+                    if re.search(filter, item.name) is not None:
+                        d = item.path
+                else:
+                    d = item.path
+
+                if d is not None and progress is not None:
+                    progress.update()
+
+                if d is not None:
+                    yield d
+
+                for d in _get_dirs(item):
+                    yield d
+
+    for p in _get_dirs(root):
+        yield p
+
+    if progress is not None:
+        progress.close()
+
+
+def get_files(
+    folder: Path | str,
+    allowed_exts: list[str] | None,
+    desc=None,
+):
     """Recursively gets_files in directory. faster than Path.glob, walk, etc."""
 
     if not Path(folder).exists():

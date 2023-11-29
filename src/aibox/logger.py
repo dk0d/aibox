@@ -1,9 +1,9 @@
+import datetime
 import logging
-from logging import Logger
 from pathlib import Path
+from logging import Logger
 
 from rich.logging import RichHandler
-import datetime
 
 
 class LogTic:
@@ -36,7 +36,7 @@ def get_logger(
     name,
     add_file_handler=False,
     file_level=logging.NOTSET,
-    log_dir="event_logs",
+    log_dir="pylogs",
 ) -> Logger:
     set_basic_config_rich()
     logger = logging.getLogger(name)

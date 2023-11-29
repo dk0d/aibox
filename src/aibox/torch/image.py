@@ -1,7 +1,8 @@
 try:
-    import torch
     from torchvision.transforms import ToPILImage, ToTensor
     from torchvision.utils import make_grid
+
+    import torch
 except ImportError:
     import sys
 
@@ -12,11 +13,10 @@ from typing import Tuple, TypeGuard
 
 import matplotlib.pyplot as plt
 import numpy as np
-from PIL import Image as PILImage
-from skimage.util import compare_images
-
 from aibox.torch.transforms import ToNumpyImage
 from aibox.utils import is_list_of
+from PIL import Image as PILImage
+from skimage.util import compare_images
 
 
 def is_image_list(images: list):
@@ -44,6 +44,16 @@ def interlace_images(images: list[torch.Tensor], maxImages: int = 8):
     return torch.cat(logIms, dim=0)
 
 
+def imshow(
+    image: np.ndarray,
+    figsize=(12, 12),
+):
+    plt.rcParams["figure.figsize"] = figsize
+    plt.imshow(image)
+    plt.axis("off")
+    plt.show()
+
+
 def display_images(
     images: list[PILImage.Image] | list[torch.Tensor] | torch.Tensor,
     n_columns=1,
@@ -66,10 +76,10 @@ def display_images(
     else:
         tensors = images
     image = ToPILImage()(make_grid(tensors, nrow=n_columns, padding=padding, normalize=normalize))
-    plt.rcParams["figure.figsize"] = figsize
-    plt.imshow(image)
-    plt.axis("off")
-    plt.show()
+    imshow(
+        image=image,
+        figsize=figsize,
+    )
 
 
 def n_channels_to_pil_mode(n_channels: int | str) -> str:
