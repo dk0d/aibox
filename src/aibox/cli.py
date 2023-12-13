@@ -273,8 +273,8 @@ def cli_main(args=None):
     cli = AIBoxCLI()
 
     # First key (source) takes priority
-    cli.add_linked_properties("model.args.image_size", "data.args.image_size", default=64)
-    cli.add_linked_properties("model.args.image_channels", "data.args.image_channels", default=1)
+    # cli.add_linked_properties("model.args.image_size", "data.args.image_size", default=64)
+    # cli.add_linked_properties("model.args.image_channels", "data.args.image_channels", default=1)
 
     config = cli.parse_args(args=args)
 
