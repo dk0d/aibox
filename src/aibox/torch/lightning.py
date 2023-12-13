@@ -178,7 +178,7 @@ try:
                 shared_split_kwargs (Config | None, optional): any arguments shared across the dataset splits. Defaults to None.
                 num_workers (_type_, optional): _description_. override num workers. if None, uses the mp.cpu_count. Defaults to None.
                 shuffle (list[str], optional): splits to shuffle. Defaults to ['train'].
-                splits (None | tuple[float, float, float], optional): used if dataset is specified and
+                splits (None | tuple[float, float, float], optional): split ratios for (train, val, test). used only if `dataset` is specified and
                     creates a random split of the datasets. Defaults to None.
             """
             super().__init__()
