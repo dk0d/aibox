@@ -266,6 +266,8 @@ def init_trainer(config, **kwargs):
 
     strategy = "auto"
 
+    tuning = "tuner" in config and "run_tune" in config and config.run_tune
+
     # Set accelerator
     if torch.backends.mps.is_built():
         accelerator = "mps"
@@ -275,7 +277,7 @@ def init_trainer(config, **kwargs):
         if "strategy" in config.trainer:
             strategy = init_from_cfg(config.trainer.strategy)
         else:
-            if "tuner" in config:
+            if tuning:
                 accelerator = "auto"
                 strategy = RayDDPStrategyWrapper(find_unused_parameters=False)
                 trainerParams.update(plugins=[RayLightningEnvironmentWrapper()])
@@ -303,7 +305,7 @@ def init_trainer(config, **kwargs):
         trainerParams.pop("strategy")
 
     trainer = L.Trainer(**trainerParams)
-    if "tuner" in config:
+    if tuning:
         from ray.train.lightning import prepare_trainer
 
         trainer = prepare_trainer(trainer)  # type: ignore
