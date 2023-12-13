@@ -154,9 +154,9 @@ try:
             batch_size,
             dataset: Config | None = None,
             train: Config | None = None,
-            validation: Config | None = None,
-            test: Config | None = None,
-            predict: Config | None = None,
+            validation: Config | list[Config] | None = None,
+            test: Config | list[Config] | None = None,  # hold out portion of dataset for testing
+            predict: Config | list[Config] | None = None,  # prediction where there are no labels present
             shared_split_kwargs: Config | None = None,
             num_workers=None,
             # Transforms
@@ -172,9 +172,9 @@ try:
                 batch_size (_type_): _description_
                 dataset (Config | None, optional): _description_. Defaults to None.
                 train (Config | None, optional): _description_. Defaults to None.
-                validation (Config | None, optional): _description_. Defaults to None.
-                test (Config | None, optional): _description_. Defaults to None.
-                predict (Config | None, optional): _description_. Defaults to None.
+                validation (Config | list[Config] | None, optional): _description_. Defaults to None.
+                test (Config | list[Config] | None, optional): _description_. Defaults to None.
+                predict (Config | list[Config] | None, optional): _description_. Defaults to None.
                 shared_split_kwargs (Config | None, optional): _description_. Defaults to None.
                 num_workers (_type_, optional): _description_. Defaults to None.
                 shuffle_test_loader (bool, optional): _description_. Defaults to False.
@@ -228,12 +228,21 @@ try:
                 train, val, test = random_split(dataset, splits)
                 self.datasets = dict(train=train, validation=val, test=test)
             else:
-                self.datasets = {
-                    k: init_from_cfg(self.dataset_configs[k], **self.split_kwargs) for k in self.dataset_configs
-                }
+                self.datasets = {}
+                for k, config in self.dataset_configs.items():
+                    if isinstance(config, list):
+                        self.datasets[k] = [init_from_cfg(c, **self.split_kwargs) for c in config]
+                    else:
+                        self.datasets[k] = init_from_cfg(config, **self.split_kwargs)
+
             if self.wrap:
                 for k in self.datasets:
-                    self.datasets[k] = WrappedDataset(self.datasets[k])
+                    if isinstance(self.datasets[k], Dataset):
+                        self.datasets[k] = WrappedDataset(self.datasets[k])
+                    elif isinstance(self.datasets[k], list):
+                        for i, d in enumerate(self.datasets[k]):
+                            if isinstance(d, Dataset):
+                                self.datasets[k][i] = WrappedDataset(d)
 
         def _get_dataloader(self, split, shuffle=False):
             # is_iterable_dataset = isinstance(self.datasets["train"], Txt2ImgIterableBaseDataset)
@@ -247,6 +256,18 @@ try:
                     shuffle = shuffle and (not is_iterable_dataset)
                 case _:
                     pass
+
+            if isinstance(self.datasets[split], list):
+                return [
+                    DataLoader(
+                        d,
+                        batch_size=self.batch_size,
+                        num_workers=self.num_workers,
+                        shuffle=False if is_iterable_dataset else shuffle,
+                        worker_init_fn=init_fn,
+                    )
+                    for d in self.datasets[split]
+                ]
             return DataLoader(
                 self.datasets[split],
                 batch_size=self.batch_size,
