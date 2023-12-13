@@ -64,7 +64,7 @@ def display_images(
 ):
     if isinstance(images, (list, tuple)):
         if is_image_list(images):
-            tensors = [ToTensor()(s) for s in images]
+            tensors = [ToTensor()(s).unsqueeze(0) for s in images]
         elif is_tensor_list(images):
             tensors = images
         else:
