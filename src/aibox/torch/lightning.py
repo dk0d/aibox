@@ -1,6 +1,7 @@
 from functools import partial
+from typing import Any
 
-from aibox.config import Config, init_from_cfg
+from aibox.config import Config, config_to_dict, init_from_cfg
 from aibox.utils import is_dict, is_list
 
 try:
@@ -160,9 +161,8 @@ try:
             shared_split_kwargs: Config | None = None,
             num_workers=None,
             # Transforms
-            shuffle_test_loader=False,
+            shuffle: list[str] = ["train"],
             # use_worker_init_fn=False,
-            shuffle_val_dataloader=False,
             splits: None | tuple[float, float, float] = None,
             wrap=False,
         ):
@@ -170,15 +170,14 @@ try:
 
             Args:
                 batch_size (_type_): _description_
-                dataset (Config | None, optional): _description_. Defaults to None.
-                train (Config | None, optional): _description_. Defaults to None.
-                validation (Config | list[Config] | None, optional): _description_. Defaults to None.
-                test (Config | list[Config] | None, optional): _description_. Defaults to None.
-                predict (Config | list[Config] | None, optional): _description_. Defaults to None.
-                shared_split_kwargs (Config | None, optional): _description_. Defaults to None.
-                num_workers (_type_, optional): _description_. Defaults to None.
-                shuffle_test_loader (bool, optional): _description_. Defaults to False.
-                shuffle_val_dataloader (bool, optional): _description_. Defaults to False.
+                dataset (Config | None, optional): . Defaults to None.
+                train (Config | None, optional): . Defaults to None.
+                validation (Config | list[Config] | None, optional):. Defaults to None.
+                test (Config | list[Config] | None, optional): . Defaults to None.
+                predict (Config | list[Config] | None, optional): . Defaults to None.
+                shared_split_kwargs (Config | None, optional): any arguments shared across the dataset splits. Defaults to None.
+                num_workers (_type_, optional): _description_. override num workers. if None, uses the mp.cpu_count. Defaults to None.
+                shuffle (list[str], optional): splits to shuffle. Defaults to ['train'].
                 splits (None | tuple[float, float, float], optional): used if dataset is specified and
                     creates a random split of the datasets. Defaults to None.
             """
@@ -186,7 +185,9 @@ try:
             self.batch_size = batch_size
             self.dataset_configs = dict()
             self.splits = splits
-            self.split_kwargs = shared_split_kwargs if shared_split_kwargs is not None else dict()
+            self.split_kwargs: dict[str, Any] = (
+                dict(**config_to_dict(shared_split_kwargs)) if shared_split_kwargs is not None else dict()
+            )
             # self.use_worker_init_fn = use_worker_init_fn
 
             if num_workers is not None and num_workers == "batch_size":
@@ -194,25 +195,29 @@ try:
             else:
                 self.num_workers = num_workers if num_workers is not None else mp.cpu_count()
 
+            shuffle_val_loader = "val" in shuffle or "validation" in shuffle
+            shuffle_test_loader = "test" in shuffle
+            shuffle_train_loader = "train" in shuffle
+            shuffle_predict_loader = "predict" in shuffle
             if dataset is not None:
                 self.dataset_configs["dataset"] = dataset
-                self.train_dataloader = self._train_dataloader
-                self.val_dataloader = partial(self._val_dataloader, shuffle=shuffle_val_dataloader)
+                self.train_dataloader = partial(self._train_dataloader, shuffle=shuffle_train_loader)
+                self.val_dataloader = partial(self._val_dataloader, shuffle=shuffle_val_loader)
                 self.test_dataloader = partial(self._test_dataloader, shuffle=shuffle_test_loader)
-                self.predict_dataloader = self._predict_dataloader
+                self.predict_dataloader = partial(self._predict_dataloader, shuffle=shuffle_predict_loader)
             else:
                 if train is not None:
                     self.dataset_configs["train"] = train
-                    self.train_dataloader = self._train_dataloader
+                    self.train_dataloader = partial(self._train_dataloader, shuffle=shuffle_train_loader)
                 if validation is not None:
                     self.dataset_configs["validation"] = validation
-                    self.val_dataloader = partial(self._val_dataloader, shuffle=shuffle_val_dataloader)
+                    self.val_dataloader = partial(self._val_dataloader, shuffle=shuffle_val_loader)
                 if test is not None:
                     self.dataset_configs["test"] = test
                     self.test_dataloader = partial(self._test_dataloader, shuffle=shuffle_test_loader)
                 if predict is not None:
                     self.dataset_configs["predict"] = predict
-                    self.predict_dataloader = self._predict_dataloader
+                    self.predict_dataloader = partial(self._predict_dataloader, shuffle=shuffle_predict_loader)
 
             self.wrap = wrap
 
@@ -276,8 +281,8 @@ try:
                 worker_init_fn=init_fn,
             )
 
-        def _train_dataloader(self):
-            return self._get_dataloader("train", True)
+        def _train_dataloader(self, shuffle=True):
+            return self._get_dataloader("train", shuffle)
 
         def _val_dataloader(self, shuffle=False):
             return self._get_dataloader("validation", shuffle)
