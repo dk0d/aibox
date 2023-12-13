@@ -291,6 +291,8 @@ def tune_ray(config, tune_fn=None):
 
     """
 
+    config_update(config, "run_tune", True)
+
     ray.init()
 
     # from ray.tune.search.ax import AxSearch
