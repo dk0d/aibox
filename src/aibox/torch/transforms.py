@@ -1,8 +1,9 @@
 try:
-    import torch
-    import torch.nn.functional as F
     import torchvision.transforms.functional as tvF
     from torchvision.transforms import Compose, Lambda, ToPILImage, ToTensor
+
+    import torch
+    import torch.nn.functional as F
 
 except ImportError:
     import sys
@@ -14,6 +15,7 @@ from enum import Enum
 
 import numpy as np
 from PIL import Image as PILImage
+
 from ..utils import is_list_of
 
 
@@ -34,6 +36,7 @@ class ToNumpyImage:
 class BlendMode(Enum):
     linear = "linear"
     composite = "composite"
+    semantic = "semantic" # turn into label image/semantic map of integers for each image or mask
 
 
 # AggFn = 'occlusion' | 'occlude' | '*' | 'multiply' | 'prod' | 'sum'
@@ -138,17 +141,21 @@ class ImageBlend:
                 weights = F.softmax(torch.linspace(*self.weight_range, steps=layers), dim=0).numpy()
             case BlendMode.linear:
                 weights = np.linspace(*self.weight_range, num=layers)
+            case BlendMode.semantic:
+                weights = np.arange(layers) + 1  # start idxs at 1
         return weights
 
     def __call__(self, images: list[PILImage.Image] | list[np.ndarray]) -> PILImage.Image:
         if is_list_of(images, PILImage.Image):
             images = [np.array(img) for img in images]
 
-        weights = self.make_weights(len(images))
-
-        weights[0] = 1.0
-
-        filtered = np.stack([self.prefilter_fn(img.astype(np.float32)) * weights[i] for i, img in enumerate(images)])
+        match self.blend_mode:
+            case BlendMode.semantic:
+                filtered = np.stack([self.prefilter_fn(img.astype(np.float32))  for i, img in enumerate(images)])
+            case _:
+                weights = self.make_weights(len(images))
+                weights[0] = 1.0
+                filtered = np.stack([self.prefilter_fn(img.astype(np.float32)) * weights[i] for i, img in enumerate(images)])
 
         # print(filtered.dtype, filtered.shape, filtered.min(), filtered.max())
         match self.agg_fn:
@@ -162,7 +169,10 @@ class ImageBlend:
                         out = np.zeros_like(img)
                     # print(np.any(img > 0), np.any(out == 0))
                     idxs = np.logical_and(img > 0, out == 0)
-                    out[idxs] = filtered[i][idxs]
+                    if self.blend_mode == BlendMode.semantic:
+                        out[idxs] = i + 1
+                    else:
+                        out[idxs] = filtered[i][idxs]
 
             case _:
                 out = np.sum(filtered, axis=0)
