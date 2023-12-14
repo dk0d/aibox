@@ -14,6 +14,7 @@ from lightning.pytorch.utilities.model_helpers import is_overridden
 from aibox.cli import AIBoxCLI, OmegaConf
 from aibox.config import config_update, init_from_cfg
 from aibox.logger import get_logger
+from aibox.torch.evaluate import evaluate_model
 
 try:
     from lightning.pytorch.plugins.environments import LightningEnvironment  # type: ignore
@@ -251,6 +252,7 @@ def init_trainer(config, **kwargs):
     if "fast_dev_run" not in trainerParams:
         trainerParams.update(fast_dev_run=config.debug)
 
+    logger = None
     if kwargs.get("should_init_logger", True):
         logger = init_logger(config)
         if logger is not None:
@@ -310,7 +312,8 @@ def init_trainer(config, **kwargs):
         from ray.train.lightning import prepare_trainer
 
         trainer = prepare_trainer(trainer)  # type: ignore
-    return trainer
+
+    return trainer, logger
 
 
 def init_model(config) -> L.LightningModule:
@@ -338,6 +341,35 @@ def init_model(config) -> L.LightningModule:
     return model
 
 
+def init(config, **kwargs):
+    """
+    Init training from config.
+
+    Args:
+        config: The config object.
+        kwargs: Additional keyword arguments.
+
+    Returns:
+        A tuple of model, datamodule, trainer, and logger (if initialized else None)
+    """
+
+    trainer, logger = init_trainer(config, **kwargs)
+
+    if "seed" in config:
+        # NOTE: Make sure to do this after logging is initialized
+        # (Otherwise MLFlow will generate the same run name for different runs)
+        # and before initializing model
+        seed_everything(config.seed, True)
+
+    model = init_model(config)
+    LOGGER.info(f"MODEL INITIALIZED: {model.__class__.__name__}")
+
+    dm = init_from_cfg(config.data)
+    LOGGER.info(f"DATAMODULE INITIALIZED: {dm.__class__.__name__}")
+
+    return model, dm, trainer, logger
+
+
 def train(config, **kwargs) -> tuple[L.LightningModule, L.LightningDataModule, L.Trainer]:
     """
     Run training from config.
@@ -349,26 +381,13 @@ def train(config, **kwargs) -> tuple[L.LightningModule, L.LightningDataModule, L
         A tuple of model, datamodule, and trainer.
     """
 
-    trainer = init_trainer(config, **kwargs)
-
-    # Seed
-    # Make sure to do this after logging is initialized
-    # (Otherwise MLFlow will generate the same run name for different runs)
-    # and before initializing model
-    if "seed" in config:
-        seed_everything(config.seed, True)
-
-    model = init_model(config)
-    LOGGER.info(f"MODEL INITIALIZED: {model.__class__.__name__}")
-
-    dm = init_from_cfg(config.data)
-    LOGGER.info(f"DATAMODULE INITIALIZED: {dm.__class__.__name__}")
+    model, dm, trainer, logger = init(config, **kwargs)
 
     LOGGER.info("TRAINING START")
     trainer.fit(model=model, datamodule=dm)
     LOGGER.info("TRAINING DONE")
 
-    return model, dm, trainer
+    return model, dm, trainer, logger
 
 
 def train_and_test(config, **kwargs):
@@ -382,25 +401,21 @@ def train_and_test(config, **kwargs):
         A tuple of model, datamodule, and trainer.
     """
 
-    model, dm, trainer = train(config, **kwargs)
+    model, dm, trainer, logger = train(config, **kwargs)
     if not is_overridden("test_step", model):
         LOGGER.info("No testing step found on model. Skipping testing")
         return None
 
     try:
-        LOGGER.info("TESTING START")
         testing_results = None
         if "evaluator" in config:
-            evaluator = init_from_cfg(
-                config.evaluator,
-                model=model,
-                test_loaders=dm.test_dataloader(),
-                predict_loaders=dm.predict_dataloader(),
-            )
-
+            LOGGER.info("EVALUATING START")
+            evaluate_model(config, model, logger, dm)
+            LOGGER.info("EVALUATING DONE")
         else:
+            LOGGER.info("TESTING START")
             testing_results = trainer.test(model=model, datamodule=dm)
-        LOGGER.info("TESTING DONE")
+            LOGGER.info("TESTING DONE")
         return testing_results
     except Exception:
         LOGGER.exception("error during test")

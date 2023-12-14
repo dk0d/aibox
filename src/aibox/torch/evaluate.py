@@ -143,14 +143,14 @@ def evaluate_model(
     model.to(device)
 
     try:
-        LOGGER.info("Running on Test Split")
+        LOGGER.info("Running evaluation on Test Split")
         _eval_model(config, model, dm.test_dataloader(), "test", logger)
         LOGGER.info("TEST DONE")
     except MisconfigurationException:
         LOGGER.info("No Test Dataloaders Found. Skipping Evaluate Test Split")
 
     try:
-        LOGGER.info("Running Predict Loader")
+        LOGGER.info("Running evaluation on Predict Split")
         _eval_model(config, model, dm.predict_dataloader(), "predict", logger)
         LOGGER.info("PREDICT DONE")
     except MisconfigurationException:
