@@ -96,13 +96,16 @@ try:
 
             if ray_train is not None:
                 if kwargs.get("run_name", None) is None:
-                    trial_name = ray_train.get_context().get_trial_name()
-                    if trial_name is not None:
-                        kwargs.update(run_name=trial_name)
-
                     try:
-                        run_id = (as_path(ray_train.get_context().get_trial_dir()) / "run_id.txt").read_text()
-                        kwargs.update(run_id=run_id)
+                        trial_name = ray_train.get_context().get_trial_name()
+                        if trial_name is not None:
+                            kwargs.update(run_name=trial_name)
+
+                        try:
+                            run_id = (as_path(ray_train.get_context().get_trial_dir()) / "run_id.txt").read_text()
+                            kwargs.update(run_id=run_id)
+                        except Exception:
+                            pass
                     except Exception:
                         pass
 

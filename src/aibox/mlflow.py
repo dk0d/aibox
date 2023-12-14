@@ -150,6 +150,9 @@ class MLFlowHelper:
                 will just load the raw ckpt file with `torch.load()`
                 Defaults to True.
             **model_kwargs: [description]. extra params passed to model initializer. Defaults to {}.
+
+        Returns:
+            tuple[Config, L.LightningModule]: the configuration and the model used in run
         """
         if isinstance(run, str):  # is run_id
             run = self.client.get_run(run_id=run)

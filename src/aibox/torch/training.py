@@ -1,5 +1,6 @@
 # %%
 import os
+import sys
 from typing import Any
 
 import lightning as L
@@ -18,9 +19,9 @@ try:
     from lightning.pytorch.plugins.environments import LightningEnvironment  # type: ignore
     from ray import train as ray_train
     from ray._private.usage.usage_lib import TagKey, record_extra_usage_tag
-    from ray.train.lightning import RayLightningEnvironment, RayDDPStrategy
-    from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback
+    from ray.train.lightning import RayDDPStrategy, RayLightningEnvironment
     from ray.train.lightning._lightning_utils import get_worker_root_device
+    from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback
 
     class RayDDPStrategyWrapper(RayDDPStrategy, DDPStrategy):
         """Subclass of DDPStrategy to ensure compatibility with Ray orchestration.
@@ -370,7 +371,7 @@ def train(config, **kwargs) -> tuple[L.LightningModule, L.LightningDataModule, L
     return model, dm, trainer
 
 
-def train_and_test(config, **kwargs) -> EVALUATE_OUTPUT | None:
+def train_and_test(config, **kwargs):
     """
     Run training and testing from config.
 
@@ -382,20 +383,28 @@ def train_and_test(config, **kwargs) -> EVALUATE_OUTPUT | None:
     """
 
     model, dm, trainer = train(config, **kwargs)
-
     if not is_overridden("test_step", model):
         LOGGER.info("No testing step found on model. Skipping testing")
         return None
+
     try:
         LOGGER.info("TESTING START")
-        testing_results = trainer.test(model=model, datamodule=dm)
+        testing_results = None
+        if "evaluator" in config:
+            evaluator = init_from_cfg(
+                config.evaluator,
+                model=model,
+                test_loaders=dm.test_dataloader(),
+                predict_loaders=dm.predict_dataloader(),
+            )
+
+        else:
+            testing_results = trainer.test(model=model, datamodule=dm)
         LOGGER.info("TESTING DONE")
         return testing_results
     except Exception:
         LOGGER.exception("error during test")
         pass
-
-    return None
 
 
 def main(args=None):
