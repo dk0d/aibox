@@ -84,6 +84,7 @@ class Evaluator:
 
     def __iter__(self):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model.eval()
         self.model.to(device)
         with torch.no_grad():
             for i, loader in enumerate(self.loaders):

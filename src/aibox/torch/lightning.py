@@ -224,7 +224,10 @@ try:
         def prepare_data(self):
             # trigger any downloads or preprocessing
             for data_cfg in self.dataset_configs.values():
-                init_from_cfg(data_cfg, **self.split_kwargs)
+                if isinstance(data_cfg, (list, tuple)):
+                    [init_from_cfg(c, **self.split_kwargs) for c in data_cfg]
+                else:
+                    init_from_cfg(data_cfg, **self.split_kwargs)
 
         def setup(self, stage=None):
             if "dataset" in self.dataset_configs:
