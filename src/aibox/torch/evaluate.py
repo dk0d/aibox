@@ -23,24 +23,45 @@ class Evaluator:
     def __init__(
         self,
         model: torch.nn.Module,
-        loaders: list[tuple[Loader | DataLoader, dict]],
+        loaders: list[Loader | DataLoader],
+        loaders_meta: list[dict] | None = None,
     ):
+        """Evaluator for a model
+
+
+        Args:
+            model (torch.nn.Module): model to evaluate
+            loaders (list[Loader | DataLoader]): list of loaders to evaluate on
+            loaders_meta (list[dict] | None, optional): list of metadata for each loader. Must be None or the same length as loaders.
+                Defaults to None.
+        """
         self.model = model
         self.loaders = loaders
+        self.loaders_meta = loaders_meta
 
     def __len__(self):
-        return sum([len(loader) for loader, _ in self.loaders])
+        return sum([len(loader) for loader in self.loaders])
 
-    def evaluate(self, batch, meta, loader_idx, device=None) -> pl.DataFrame:
+    def evaluate(self, batch, loader_idx, device=None) -> pl.DataFrame:
+        """Evaluate a batch and return a polars.DataFrame with the results
+
+        Args:
+            batch (torch.Tensor): batch of data
+            loader_idx (int): index of the loader
+            device (torch.device, optional): device to run the model on. Defaults to None.
+
+
+        """
+
         raise NotImplementedError
 
     def __iter__(self):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(device)
         with torch.no_grad():
-            for i, (loader, meta) in enumerate(self.loaders):
+            for i, loader in enumerate(self.loaders):
                 for batch in loader:
-                    yield self.evaluate(batch, meta, i, device=device)
+                    yield self.evaluate(batch, i, device=device)
 
 
 class ParquetWriter:
@@ -157,7 +178,7 @@ def evaluate_model(
         LOGGER.info("No Predict Dataloaders Found. Skipping Evaluate Predict Split.")
 
 
-def main(args=None):
+def main_cli(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--mlflow-tracking-uri",
