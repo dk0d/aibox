@@ -417,8 +417,9 @@ def train_and_test(config, **kwargs):
             testing_results = trainer.test(model=model, datamodule=dm)
             LOGGER.info("TESTING DONE")
         return testing_results
-    except Exception:
-        LOGGER.exception("error during test")
+    except Exception as e:
+        LOGGER.error("error during test")
+        LOGGER.exception(e)
         pass
 
 

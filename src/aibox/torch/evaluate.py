@@ -18,13 +18,14 @@ from torch.utils.data import DataLoader
 
 LOGGER = get_logger(__name__)
 
+EvalLoader = Loader | DataLoader
+
 
 class Evaluator:
     def __init__(
         self,
         model: torch.nn.Module,
-        loaders: list[Loader | DataLoader],
-        loaders_meta: list[dict] | None = None,
+        loaders: list[EvalLoader] | EvalLoader,
     ):
         """Evaluator for a model
 
@@ -36,11 +37,37 @@ class Evaluator:
                 Defaults to None.
         """
         self.model = model
+        if not isinstance(loaders, list):
+            loaders = [loaders]
         self.loaders = loaders
-        self.loaders_meta = loaders_meta
 
     def __len__(self):
         return sum([len(loader) for loader in self.loaders])
+
+    def get_loader_meta(self, batch_size, loader_idx):
+        """
+
+        Assumes results takes the form of:
+        {
+            "col1": [val1, val2, ...],
+            "col2": [val1, val2, ...],
+            ...
+        }
+
+        Returns:
+            dict: metadata for the batch in the form of key: [val] * batch_size
+        """
+
+        bs = getattr(self, "_batch_size", None)
+
+        if bs is None or bs != batch_size:
+            self._batch_size = batch_size
+            self._sized_loaders_meta = [{}] * len(self.loaders)
+            loaders_meta = [getattr(loader, "evaluate_metadata", {}) for loader in self.loaders]
+            for i in range(len(self.loaders)):
+                self._sized_loaders_meta[i] = {k: [v] * batch_size for k, v in loaders_meta[i].items()}
+
+        return self._sized_loaders_meta[loader_idx]
 
     def evaluate(self, batch, loader_idx, device=None) -> pl.DataFrame:
         """Evaluate a batch and return a polars.DataFrame with the results
@@ -91,7 +118,7 @@ class ParquetWriter:
         self.evaluator = evaluator
         self.logger = logger
         self.split = split
-        self.results_dir = results_dir if results_dir is not None else as_path("./results")
+        self.results_dir = as_path(results_dir) if results_dir is not None else as_path("./results")
 
         filename = f"{self.logger.run_name}_{split}"
         self.parquet_path = self.results_dir / logger.run_name / f"{filename}.parquet"
@@ -108,20 +135,22 @@ class ParquetWriter:
 
     def run(self):
         run_name = self.logger.run_name
-
-        for df in track(self.evaluator, total=len(self.evaluator), description=f"{self.logger.run_name}"):
-            df = df.with_columns(
-                [
-                    pl.lit(run_name).alias("run"),
-                    pl.lit(self.logger.run_id).alias("run_id"),
-                ],
-            )
-            df_arrow = df.to_arrow()
-            if self.pq_writer is None:
-                self.pq_writer = pq.ParquetWriter(self.parquet_path, df_arrow.schema)
-            self.pq_writer.write_table(df_arrow)
-
-        self.close_writer()
+        try:
+            for df in track(self.evaluator, total=len(self.evaluator), description=f"{self.logger.run_name}"):
+                df = df.with_columns(
+                    [
+                        pl.lit(run_name).alias("run"),
+                        pl.lit(self.logger.run_id).alias("run_id"),
+                    ],
+                )
+                df_arrow = df.to_arrow()
+                if self.pq_writer is None:
+                    self.pq_writer = pq.ParquetWriter(self.parquet_path, df_arrow.schema)
+                self.pq_writer.write_table(df_arrow)
+        except KeyboardInterrupt:
+            LOGGER.info("Keyboard Interrupt. Stopping Evaluation.")
+        finally:
+            self.close_writer()
 
         self.logger.log_artifact(str(self.parquet_path))
         if self.delete_after:
