@@ -31,13 +31,6 @@ license = { text = "MIT" }
 [project.scripts]
 aibox = 'aibox.__main__:main'
 
-
-[tool.black]
-line-length = 120
-
-[tool.ruff]
-line-length = 120
-
 [project.urls]
 
 [project.optional-dependencies]
@@ -68,7 +61,6 @@ tag = true
 tag_sign = false
 commit_message = "chore: release v{new_version}"
 
-
 [tool.pytest.ini_options]
 # Only show warnings from aibox
 filterwarnings = ['ignore', ":::aibox"]
@@ -76,7 +68,3 @@ filterwarnings = ['ignore', ":::aibox"]
 [build-system]
 requires = ["hatchling", "hatch-regex-commit"]
 build-backend = "hatchling.build"
-
-# [build-system]
-# requires = ["pdm.backend"]
-# build-backend = "pdm.backend"
