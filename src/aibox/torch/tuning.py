@@ -13,8 +13,6 @@ from omegaconf import OmegaConf
 from ray import air, tune
 from ray.air.config import CheckpointConfig
 from ray.air.integrations.mlflow import MLflowLoggerCallback
-from ray.train import ScalingConfig
-from ray.train.torch import TorchTrainer
 
 from aibox.config import config_merge, config_update
 from aibox.logger import get_logger

@@ -1,20 +1,20 @@
 import re
 from pathlib import Path
+from typing import Optional
+
+import numpy as np
+import pandas as pd
+import tqdm
+from google.protobuf import text_format
 
 # from pprint import pprint
 from packaging import version
-from typing import List, Optional
-from google.protobuf import text_format
 from tensorboard.compat import tf
-import numpy as np
-
-import pandas as pd
-import tqdm
 
 try:
+    import tensorboard as tb
     from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
     from tensorboard.plugins.projector.projector_plugin import ProjectorConfig
-    import tensorboard as tb
 
     class TBLogReader:
         def __init__(self, log_root_dir: Path = Path("logs")):
@@ -178,14 +178,14 @@ try:
                         df[col[0]] = runlog_data[col]
                 return df
             # Dirty catch of DataLossError
-            except Exception as e:
+            except Exception:
                 print(f"Event file possibly corrupt: {path}")
                 # print(e)
                 # traceback.print_exc()
             return None
 
         @staticmethod
-        def _events_to_dfs(event_paths: List[Path]) -> pd.DataFrame:
+        def _events_to_dfs(event_paths: list[Path]) -> pd.DataFrame:
             all_logs = {}
             event_paths.sort()
             for path in tqdm.tqdm(event_paths, desc="Loading Events"):

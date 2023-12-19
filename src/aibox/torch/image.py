@@ -1,22 +1,22 @@
 try:
+    import torch
     from torchvision.transforms import ToPILImage, ToTensor
     from torchvision.utils import make_grid
-
-    import torch
 except ImportError:
     import sys
 
     print("pytorch required for these utilities")
     sys.exit(1)
 
-from typing import Tuple, TypeGuard
+from typing import TypeGuard
 
 import matplotlib.pyplot as plt
 import numpy as np
-from aibox.torch.transforms import ToNumpyImage
-from aibox.utils import is_list_of
 from PIL import Image as PILImage
 from skimage.util import compare_images
+
+from aibox.torch.transforms import ToNumpyImage
+from aibox.utils import is_list_of
 
 
 def is_image_list(images: list):
@@ -169,5 +169,5 @@ def calc_ae_conv_transpose_2d(hIn, wIn, numLayers):
     return shape
 
 
-def calc_conv_shapes(imageShape: Tuple):
+def calc_conv_shapes(imageShape: tuple):
     calc_ae_conv_transpose_2d(*calc_ae_conv_2d(*imageShape, 5), numLayers=5)

@@ -1,9 +1,8 @@
 try:
-    import torchvision.transforms.functional as tvF
-    from torchvision.transforms import Compose, Lambda, ToPILImage, ToTensor
-
     import torch
     import torch.nn.functional as F
+    import torchvision.transforms.functional as tvF
+    from torchvision.transforms import Compose, Lambda, ToPILImage, ToTensor
 
 except ImportError:
     import sys

@@ -1,8 +1,8 @@
 import multiprocessing as mp
+
 from aibox.config import Config, init_from_cfg
 from aibox.ffcv.dataset import FFCVDataset
 from aibox.logger import get_logger
-
 
 LOGGER = get_logger(__name__)
 
@@ -67,7 +67,6 @@ try:
             This method is used to define the processes that are meant to be performed by only one GPU.
             It’s usually used to handle the task of downloading the data.
             """
-            pass
 
         def setup(self, stage: str) -> None:
             pass

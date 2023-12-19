@@ -1,16 +1,16 @@
 import copy
 
-import aibox
 import pytest
+from omegaconf import DictConfig
+
 from aibox.config import (
     SUPPORTED_INIT_ARGS_KEYS,
     SUPPORTED_INIT_TARGET_KEYS,
+    ConfigDict,
     config_from_dict,
     init_from_cfg,
-    ConfigDict,
 )
 from aibox.utils import as_path
-from omegaconf import DictConfig
 
 
 def make_config_variations():

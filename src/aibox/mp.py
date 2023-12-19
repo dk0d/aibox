@@ -3,9 +3,9 @@ import concurrent.futures
 import itertools
 import os
 import sys
+from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from typing import Any, Callable
-
+from typing import Any
 
 from rich.console import Console
 from rich.progress import (

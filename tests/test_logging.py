@@ -1,14 +1,8 @@
 # %%
-import numpy as np
-import PIL.Image as PIlImage
-import pytest
 import torch
-import torchvision
+
 from aibox.torch.callbacks import LogImagesCallback
-from aibox.torch.image import display_images
 from aibox.torch.logging import CombinedLogger
-from skimage.color import label2rgb
-from torchvision.transforms import ToPILImage
 
 DEFAULT_CONFIG_DIR = "tests/resources/configs"
 

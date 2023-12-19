@@ -1,9 +1,9 @@
 import datetime
 from argparse import Action, ArgumentParser, Namespace
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
-import rich
 from omegaconf import DictConfig, OmegaConf
 
 from aibox.config import config_from_path
@@ -189,7 +189,7 @@ class AIBoxCLI:
 
             if args.models_dir is None:
                 args.models_dir = args.config_dir / "models"
-        except Exception as e:
+        except Exception:
             pass
 
         cli_config = self._args_to_config(args)

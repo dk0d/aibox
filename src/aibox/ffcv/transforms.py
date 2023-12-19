@@ -1,15 +1,16 @@
+from collections.abc import Callable
 from dataclasses import replace
-from aibox.logger import get_logger
-
-from typing import Tuple, Optional, Callable
+from typing import Optional
 
 import torch
+
+from aibox.logger import get_logger
 
 LOGGER = get_logger(__name__)
 
 try:
-    from ffcv.pipeline.operation import Operation
     from ffcv.pipeline.allocation_query import AllocationQuery
+    from ffcv.pipeline.operation import Operation
     from ffcv.pipeline.state import State
 
     class DivideImage255(Operation):
@@ -35,7 +36,7 @@ try:
 
             return divide
 
-        def declare_state_and_memory(self, previous_state: State) -> Tuple[State, Optional[AllocationQuery]]:
+        def declare_state_and_memory(self, previous_state: State) -> tuple[State, Optional[AllocationQuery]]:
             return replace(previous_state, dtype=self.dtype), None
 
 except ImportError:

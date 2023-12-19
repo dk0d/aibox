@@ -1,7 +1,7 @@
 try:
     import torch
-    import torch.nn as nn
     import torchvision
+    from torch import nn
     from torch.utils.tensorboard._convert_np import make_np
     from torch.utils.tensorboard._utils import convert_to_HWC
     from torch.utils.tensorboard.writer import SummaryWriter

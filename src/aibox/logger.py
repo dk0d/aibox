@@ -1,7 +1,7 @@
 import datetime
 import logging
-from pathlib import Path
 from logging import Logger
+from pathlib import Path
 
 from rich.logging import RichHandler
 
@@ -18,7 +18,7 @@ class LogTic:
             print(msg)
 
     def __call__(self, msg):
-        out = f"{msg} ({str(datetime.datetime.now() - self.start)} elapsed)"
+        out = f"{msg} ({datetime.datetime.now() - self.start!s} elapsed)"
         self.printer(out)
         self.start = datetime.datetime.now()
 

@@ -169,7 +169,7 @@ class MLFlowHelper:
         if init_model:
             if not hasattr(config, "model"):
                 raise Exception("Config has no model key")
-            model_cfg = getattr(config, "model")
+            model_cfg = config.model
             Model: L.LightningModule = class_from_string(derive_classpath(model_cfg))
             device = get_device()
             model_kwargs.update(map_location=device)
@@ -346,7 +346,7 @@ class MLFlowCheckpointEntry:
 
 
 def rewrite_artifact_path(metadata_file, pwd, artifact_path_key):
-    with open(metadata_file, "r") as f:
+    with open(metadata_file) as f:
         y = yaml.safe_load(f)
         y[artifact_path_key] = f"file://{pwd}"
 

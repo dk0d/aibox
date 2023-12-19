@@ -16,7 +16,7 @@ def run(args, install):
         print(f"[blue bold]\n\\[Dry Run][/blue bold]\n{' '.join(args)}\n")
     else:
         print(f'[green bold]\n\\[Running][/green bold]\n{" ".join(args)}\n')
-        subprocess.run(args)
+        subprocess.run(args, check=False)
 
 
 def main():

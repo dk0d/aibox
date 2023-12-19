@@ -1,4 +1,3 @@
-from __future__ import print_function
 
 import atexit
 import datetime
@@ -9,7 +8,6 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from pprint import pprint
 
 from aibox.logger import get_logger
 from aibox.utils import as_path
@@ -130,7 +128,7 @@ class SlurmDirectives:
         return header
 
 
-class Slurm(object):
+class Slurm:
     def __init__(
         self,
         name,

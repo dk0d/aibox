@@ -6,11 +6,11 @@ LOGGER = get_logger(__name__)
 try:
     from pathlib import Path
 
-    from aibox.ffcv.utils import field_to_str, obj_to_field
-    from aibox.utils import as_path
+    from ffcv import DatasetWriter
     from torch.utils.data import Dataset
 
-    from ffcv import DatasetWriter
+    from aibox.ffcv.utils import field_to_str, obj_to_field
+    from aibox.utils import as_path
 
 
     def create_beton_wrapper(
@@ -74,7 +74,7 @@ try:
 
         output_path = as_path(output_path)
 
-        if not output_path.suffix != ".beton":
+        if output_path.suffix == ".beton":
             output_path = output_path.with_suffix(".beton")
 
         # find dir

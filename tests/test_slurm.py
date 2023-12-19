@@ -1,10 +1,8 @@
 # %%
-import pytest
-import argparse
-from aibox.cli import AIBoxCLI
-from aibox.slurm.cli import main as submit_main
-from aibox.utils import print
 
+import pytest
+
+from aibox.slurm.cli import main as submit_main
 
 DEFAULT_CONFIG_DIR = "tests/resources/configs"
 

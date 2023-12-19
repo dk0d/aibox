@@ -1,15 +1,16 @@
-from typing import Iterable, Callable, Sequence
-from rich.style import StyleType
-from rich.console import Console, Group
+from collections.abc import Callable, Iterable, Sequence
+
+from rich.console import Console
 from rich.progress import (
     BarColumn,
     Progress,
-    TextColumn,
-    TimeRemainingColumn,
     ProgressType,
     TaskProgressColumn,
+    TextColumn,
     TimeElapsedColumn,
+    TimeRemainingColumn,
 )
+from rich.style import StyleType
 
 
 def create_progress(

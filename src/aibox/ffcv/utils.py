@@ -2,8 +2,9 @@ from typing import Any
 
 import numpy as np
 import torch
-from aibox.logger import get_logger
 from PIL.Image import Image
+
+from aibox.logger import get_logger
 
 LOGGER = get_logger(__name__)
 try:

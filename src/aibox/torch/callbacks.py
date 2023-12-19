@@ -269,9 +269,9 @@ class LogImagesCallback(L.Callback):
         grid = grid.transpose(0, 1).transpose(1, 2).squeeze(-1)
         grid = grid.numpy().astype(np.uint8)
         if k is None:
-            filename = "gs-{:06}_e-{:06}_b-{:06}.png".format(global_step, current_epoch, batch_idx)
+            filename = f"gs-{global_step:06}_e-{current_epoch:06}_b-{batch_idx:06}.png"
         else:
-            filename = "{}_gs-{:06}_e-{:06}_b-{:06}.png".format(k, global_step, current_epoch, batch_idx)
+            filename = f"{k}_gs-{global_step:06}_e-{current_epoch:06}_b-{batch_idx:06}.png"
         path = root / filename
         path.parent.mkdir(parents=True, exist_ok=True)
         Image.fromarray(grid).save(path)

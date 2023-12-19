@@ -1,4 +1,5 @@
 import pytest
+
 from aibox.cli import CLIException, cli_main
 
 DEFAULT_CONFIG_DIR = "tests/resources/configs"

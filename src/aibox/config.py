@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import TypeAlias
 
 from omegaconf import DictConfig, OmegaConf
-from typing_extensions import Self
 
 from aibox.utils import as_path, as_uri
 

@@ -8,7 +8,6 @@ try:
     import multiprocessing as mp
 
     # from argparse import ArgumentParser
-
     import lightning.pytorch as L
 
     # from lightning.pytorch.cli import LightningCLI
@@ -97,10 +96,10 @@ try:
             self.dataset = init_from_cfg(config)
 
         def __repr__(self):
-            return f"DatasetFromConfig({repr(self.dataset)})"
+            return f"DatasetFromConfig({self.dataset!r})"
 
         def __str__(self):
-            return f"DatasetFromConfig({str(self.dataset)})"
+            return f"DatasetFromConfig({self.dataset!s})"
 
         def __len__(self):
             return len(self.dataset)
@@ -110,10 +109,10 @@ try:
 
     class TransformFromConfig:
         def __repr__(self) -> str:
-            return f"TransformFromConfig({repr(self.transforms)})"
+            return f"TransformFromConfig({self.transforms!r})"
 
         def __str__(self) -> str:
-            return f"TransformFromConfig({str(self.transforms)})"
+            return f"TransformFromConfig({self.transforms!s})"
 
         def __init__(self, config):
             self.config = config

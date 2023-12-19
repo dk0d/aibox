@@ -33,7 +33,7 @@ def get_dirs(
     """Recursively gets directories in directory. faster than Path.glob, walk, etc."""
 
     if not Path(root).exists():
-        LOGGER.warn(f"Folder does not exist: {root}")
+        LOGGER.warning(f"Folder does not exist: {root}")
         return
 
     if desc is None:
@@ -80,7 +80,7 @@ def get_files(
     """Recursively gets_files in directory. faster than Path.glob, walk, etc."""
 
     if not Path(folder).exists():
-        LOGGER.warn(f"Folder does not exist: {folder}")
+        LOGGER.warning(f"Folder does not exist: {folder}")
         return
 
     check_ext = allowed_exts is not None and len(allowed_exts) > 0
@@ -202,7 +202,7 @@ def get_config_root(config):
 
 def _resolve_paths(config, old_root, new_root=Path.cwd(), verbose=False):
     for k, v in config.items():
-        if ("root" in k or "dir" in k or "path" in k) and (isinstance(v, str) or isinstance(v, Path)):
+        if ("root" in k or "dir" in k or "path" in k) and (isinstance(v, Path | str)):
             try:
                 p = as_path(v)
                 if p is not None and p.is_relative_to(old_root):
@@ -212,7 +212,6 @@ def _resolve_paths(config, old_root, new_root=Path.cwd(), verbose=False):
             except Exception as e:
                 if verbose:
                     LOGGER.error(f"Could not resolve path for key {k}\n{v}\n{e}")
-                pass
         elif is_dict(v):
             _resolve_paths(v, old_root, new_root=new_root, verbose=verbose)
 

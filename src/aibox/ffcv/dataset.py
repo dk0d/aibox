@@ -1,12 +1,12 @@
 from pathlib import Path
 
+from ffcv.loader import OrderOption
+from ffcv.reader import Reader
+from torch.utils.data import Dataset
+
 from aibox.config import Config, init_from_cfg
 from aibox.ffcv.beton import create_beton_wrapper
 from aibox.utils import as_path
-from torch.utils.data import Dataset
-
-from ffcv.loader import OrderOption
-from ffcv.reader import Reader
 
 
 class FFCVDataset(Dataset):

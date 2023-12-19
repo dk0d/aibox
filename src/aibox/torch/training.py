@@ -420,7 +420,6 @@ def train_and_test(config, **kwargs):
     except Exception as e:
         LOGGER.error("error during test")
         LOGGER.exception(e)
-        pass
 
 
 def main(args=None):

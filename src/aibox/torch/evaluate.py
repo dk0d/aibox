@@ -1,20 +1,21 @@
 import argparse
 from pathlib import Path
 
-import aibox
 import lightning as L
-from lightning.fabric.utilities.exceptions import MisconfigurationException
 import polars as pl
 import pyarrow.parquet as pq
 import torch
+from ffcv.loader import Loader
+from lightning.fabric.utilities.exceptions import MisconfigurationException
+from torch.utils.data import DataLoader
+
+import aibox
 from aibox.config import Config, init_from_cfg
 from aibox.logger import get_logger
 from aibox.mlflow import MLFlowHelper
 from aibox.progress import track
 from aibox.torch.logging import CombinedLogger
 from aibox.utils import as_path
-from ffcv.loader import Loader
-from torch.utils.data import DataLoader
 
 LOGGER = get_logger(__name__)
 
