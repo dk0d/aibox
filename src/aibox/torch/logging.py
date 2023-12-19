@@ -73,6 +73,11 @@ try:
             return self.experiment.get_run(self.run_id).info.run_name
 
         @property
+        @rank_zero_experiment
+        def run(self) -> str:
+            return self.experiment.get_run(self.run_id)
+
+        @property
         def save_dir(self) -> str | None:
             """The root file directory in which MLflow experiments are saved.
             fixes error in MLFlowLogger that uses lstrip and removes extra characters
