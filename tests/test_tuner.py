@@ -21,7 +21,5 @@ def test_search_space_resolution():
     """
 
     config = config_from_toml_stream(config_toml)
-
     search_space = gather_search_spaces_ray(config)
-
     assert set(search_space.keys()) == {"model.masked", "model.mode", "data.train.mode", "data.train.content_mode"}
