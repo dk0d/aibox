@@ -401,8 +401,6 @@ def get_best_model(model, trainer, logger, config):
             Model = class_from_string(config.model.__classpath__)
             best = Model.load_from_checkpoint(checkpoint_callback.best_model_path)
         except Exception:
-            pass
-        else:
             if hasattr(logger, "tracking_uri"):
                 helper = MLFlowHelper(logger.tracking_uri)
                 run = helper.get_run(logger.run_id)
