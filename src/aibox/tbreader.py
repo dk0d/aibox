@@ -19,14 +19,10 @@ try:
     class TBLogReader:
         def __init__(self, log_root_dir: Path = Path("logs")):
             major_ver, minor_ver, _ = version.parse(tb.__version__).release
-            assert (
-                major_ver >= 2 and minor_ver >= 3
-            ), "This class requires TensorBoard 2.3 or later"
+            assert major_ver >= 2 and minor_ver >= 3, "This class requires TensorBoard 2.3 or later"
 
             self.log_root_dir = log_root_dir.expanduser().resolve()
-            assert (
-                self.log_root_dir.exists()
-            ), f"Log directory not found: {self.log_root_dir}"
+            assert self.log_root_dir.exists(), f"Log directory not found: {self.log_root_dir}"
             self.allEventFiles = self._get_logs_in_path(self.log_root_dir)
             # self.dataFrames = self._events2DataFrames(self.allEventFiles)
 
@@ -52,10 +48,7 @@ try:
                     lines.append(line)
                     if len(lines) == 1 and "\t" in lines[0]:
                         num_header_rows = 1
-                    if (
-                        num_rows is not None
-                        and len(lines) >= num_rows + num_header_rows
-                    ):
+                    if num_rows is not None and len(lines) >= num_rows + num_header_rows:
                         break
 
             return "".join(lines)
@@ -96,17 +89,13 @@ try:
                     (
                         e.tensor_name,
                         self._read_tensor_tsv_file(config_path.parent / e.tensor_path),
-                        self._read_metadata_tsv_file(
-                            config_path.parent / e.metadata_path
-                        ),
+                        self._read_metadata_tsv_file(config_path.parent / e.metadata_path),
                     )
                     for e in config.embeddings
                 ]
             return embeddings
 
-        def get_logs(
-            self, path_regex_mask: Optional[str] = None
-        ) -> Optional[pd.DataFrame]:
+        def get_logs(self, path_regex_mask: Optional[str] = None) -> Optional[pd.DataFrame]:
             if path_regex_mask is not None:
                 regex = re.compile(path_regex_mask)
                 event_files = [
@@ -159,12 +148,8 @@ try:
                     if tag == "hp_metric":
                         continue
                     event_list = event_acc.Scalars(tag)
-                    events = list(
-                        map(lambda x: (x.step, x.value, x.wall_time), event_list)
-                    )
-                    events = pd.DataFrame(
-                        events, columns=[[tag] * 3, ["step", "value", "wall_time"]]
-                    )
+                    events = list(map(lambda x: (x.step, x.value, x.wall_time), event_list))
+                    events = pd.DataFrame(events, columns=[[tag] * 3, ["step", "value", "wall_time"]])
                     events.set_index((tag, "step"), inplace=True)
                     runlog_data = pd.concat((runlog_data, events), axis=1)
                 columns = set(runlog_data.columns)
@@ -209,11 +194,7 @@ try:
                     all_logs[name][fold].append(None)
 
             return pd.concat(
-                [
-                    pd.concat(dfs)
-                    for m, fold in all_logs.items()
-                    for fIdx, dfs in fold.items()
-                ]
+                [pd.concat(dfs) for m, fold in all_logs.items() for fIdx, dfs in fold.items()]
             ).reset_index(drop=True)
 
 except ImportError:

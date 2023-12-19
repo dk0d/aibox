@@ -36,7 +36,7 @@ try:
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            record_extra_usage_tag(TagKey.TRAIN_LIGHTNING_RAYDDPSTRATEGY, '1')
+            record_extra_usage_tag(TagKey.TRAIN_LIGHTNING_RAYDDPSTRATEGY, "1")
 
         @property
         def root_device(self) -> torch.device:
@@ -54,7 +54,7 @@ try:
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            record_extra_usage_tag(TagKey.TRAIN_LIGHTNING_RAYLIGHTNINGENVIRONMENT, '1')  # type: ignore
+            record_extra_usage_tag(TagKey.TRAIN_LIGHTNING_RAYLIGHTNINGENVIRONMENT, "1")  # type: ignore
 
         def world_size(self) -> int:
             return ray_train.get_context().get_world_size() or 1
@@ -94,7 +94,7 @@ try:
             # if os.path.isdir(self.tmpdir_prefix) and self.local_rank == 0:
             #     shutil.rmtree(self.tmpdir_prefix)
 
-            record_extra_usage_tag(TagKey.TRAIN_LIGHTNING_RAYTRAINREPORTCALLBACK, '1')  # type: ignore
+            record_extra_usage_tag(TagKey.TRAIN_LIGHTNING_RAYTRAINREPORTCALLBACK, "1")  # type: ignore
 
         def on_validation_epoch_end(self, trainer, pl_module) -> None:
             # # Creates a checkpoint dir with fixed name
@@ -106,8 +106,8 @@ try:
             metrics = {k: v.item() for k, v in metrics.items()}
 
             # (Optional) Add customized metrics
-            metrics['epoch'] = trainer.current_epoch
-            metrics['step'] = trainer.global_step
+            metrics["epoch"] = trainer.current_epoch
+            metrics["step"] = trainer.global_step
 
             # Save checkpoint to local
             # ckpt_path = os.path.join(tmpdir, "checkpoint.ckpt")
@@ -140,12 +140,12 @@ def init_callbacks(config) -> list[L.Callback]:
     Returns:
         A list of callbacks.
     """
-    if 'callbacks' in config.trainer:
+    if "callbacks" in config.trainer:
         callbacks_cfg = config.trainer.callbacks
     else:
         callbacks_cfg = OmegaConf.create()
-    callbacks = [cfg for _, cfg in callbacks_cfg.items() if '__disable__' not in cfg or not cfg.__disable__]
-    [cfg.pop('__disable__', None) for cfg in callbacks]
+    callbacks = [cfg for _, cfg in callbacks_cfg.items() if "__disable__" not in cfg or not cfg.__disable__]
+    [cfg.pop("__disable__", None) for cfg in callbacks]
     callbacks = [init_from_cfg(cfg) for cfg in callbacks]
     callbacks.append(RichProgressBar())
     return callbacks
@@ -161,24 +161,24 @@ def init_logger(config, log_hyperparams=True) -> Logger | None:
     Returns:
         A logger.
     """
-    if 'logging' in config:
+    if "logging" in config:
         try:
             logger = init_from_cfg(config.logging)
-            if 'tags' in config and hasattr(logger, 'log_tags'):
+            if "tags" in config and hasattr(logger, "log_tags"):
                 logger.log_tags(config.tags)
                 del config.tags
             if log_hyperparams:
                 logger.log_hyperparams(config)
 
-            if hasattr(logger, 'experiment_name'):
-                LOGGER.info(f'Experiment Name: {logger.experiment_name}')
-            if hasattr(logger, 'run_id'):
-                LOGGER.info(f'Run ID: {logger.run_id}')
-            if hasattr(logger, 'run_name'):
-                LOGGER.info(f'Run Name: {logger.run_name}')
+            if hasattr(logger, "experiment_name"):
+                LOGGER.info(f"Experiment Name: {logger.experiment_name}")
+            if hasattr(logger, "run_id"):
+                LOGGER.info(f"Run ID: {logger.run_id}")
+            if hasattr(logger, "run_name"):
+                LOGGER.info(f"Run Name: {logger.run_name}")
             return logger
         except Exception as e:  # TODO: Better handling of when logger init fails
-            LOGGER.error(f'Failed to initialize logger: {config.logging}')
+            LOGGER.error(f"Failed to initialize logger: {config.logging}")
             LOGGER.error(e, exc_info=True)
             sys.exit(1)
     return None
@@ -197,35 +197,35 @@ def handle_slurm_param(config):
     Returns:
         A dictionary of slurm parameters.
     """
-    slurm = 'SLURM_JOB_ID' in os.environ.keys()
+    slurm = "SLURM_JOB_ID" in os.environ.keys()
     if slurm:
         slurmMeta = {
             k: os.environ.get(k, None)
             for k in [
-                'SLURM_JOB_ID',
-                'SLURM_JOB_NODELIST',
-                'SLURM_JOB_NUM_NODES',
-                'SLURM_NTASKS',
-                'SLURM_TASKS_PER_NODE',
-                'SLURM_TASKS_PER_CPU',
-                'SLURM_MEM_PER_NODE',
-                'SLURM_MEM_PER_CPU',
-                'SLURM_NODEID',
-                'SLURM_PROCID',
-                'SLURM_LOCALID',
-                'SLURM_TASK_PID',
-                'SLURM_CPUS_PER_TASK',
+                "SLURM_JOB_ID",
+                "SLURM_JOB_NODELIST",
+                "SLURM_JOB_NUM_NODES",
+                "SLURM_NTASKS",
+                "SLURM_TASKS_PER_NODE",
+                "SLURM_TASKS_PER_CPU",
+                "SLURM_MEM_PER_NODE",
+                "SLURM_MEM_PER_CPU",
+                "SLURM_NODEID",
+                "SLURM_PROCID",
+                "SLURM_LOCALID",
+                "SLURM_TASK_PID",
+                "SLURM_CPUS_PER_TASK",
             ]
         }
 
         try:
-            for k in ['SLURM_TASKS_PER_NODE', 'SLURM_CPUS_PER_TASK']:
+            for k in ["SLURM_TASKS_PER_NODE", "SLURM_CPUS_PER_TASK"]:
                 n = slurmMeta[k]
                 if n is not None:
-                    config_update(config, 'data.num_workers', int(n))
+                    config_update(config, "data.num_workers", int(n))
                     break
         except Exception as e:
-            LOGGER.error('Failed to set num_workers from SLURM_TASKS_PER_NODE', exc_info=True)
+            LOGGER.error("Failed to set num_workers from SLURM_TASKS_PER_NODE", exc_info=True)
             LOGGER.exception(e)
         # torch.set_float32_matmul_precision("medium")
     else:
@@ -249,45 +249,45 @@ def init_trainer(config, **kwargs):
 
     trainerParams = dict(**config.trainer)
 
-    if 'fast_dev_run' not in trainerParams:
+    if "fast_dev_run" not in trainerParams:
         trainerParams.update(fast_dev_run=config.debug)
 
     logger = None
-    if kwargs.get('should_init_logger', True):
+    if kwargs.get("should_init_logger", True):
         logger = init_logger(config)
         if logger is not None:
-            LOGGER.info(f'Logging to: {logger.log_dir}')
+            LOGGER.info(f"Logging to: {logger.log_dir}")
             trainerParams.update(logger=logger)
 
     callbacks = init_callbacks(config)
 
     # Remove progress bar if disabled -- raises error otherwise
-    if 'enable_progress_bar' in trainerParams and not trainerParams['enable_progress_bar']:
+    if "enable_progress_bar" in trainerParams and not trainerParams["enable_progress_bar"]:
         callbacks = [cb for cb in callbacks if not isinstance(cb, RichProgressBar)]
 
     LOGGER.info(f"Callbacks: {[c.__class__.__name__.split('.')[-1] for c in callbacks]}")
 
-    strategy = 'auto'
+    strategy = "auto"
 
-    tuning = 'tuner' in config and 'run_tune' in config and config.run_tune
+    tuning = "tuner" in config and "run_tune" in config and config.run_tune
 
     # Set accelerator
     if torch.backends.mps.is_built():
-        accelerator = 'mps'
+        accelerator = "mps"
     else:
-        accelerator = 'gpu'
+        accelerator = "gpu"
 
-        if 'strategy' in config.trainer:
+        if "strategy" in config.trainer:
             strategy = init_from_cfg(config.trainer.strategy)
         else:
             if tuning:
-                accelerator = 'auto'
+                accelerator = "auto"
                 strategy = RayDDPStrategyWrapper(find_unused_parameters=False)
                 trainerParams.update(plugins=[RayLightningEnvironmentWrapper()])
             elif torch.backends.cuda.is_built() and torch.cuda.device_count() > 1:
                 strategy = DDPStrategy(find_unused_parameters=False)
 
-    if 'profiler' in config.trainer:
+    if "profiler" in config.trainer:
         profiler = init_from_cfg(config.trainer.profiler)
     else:
         profiler = None
@@ -295,7 +295,7 @@ def init_trainer(config, **kwargs):
     trainerParams.update(
         strategy=strategy,
         accelerator=accelerator,
-        devices='auto',
+        devices="auto",
         num_sanity_val_steps=0,
         callbacks=callbacks,
         precision=32,
@@ -303,9 +303,9 @@ def init_trainer(config, **kwargs):
     )
 
     if not torch.backends.cuda.is_built() and not torch.backends.mps.is_built():
-        trainerParams.pop('accelerator')
-        trainerParams.pop('devices')
-        trainerParams.pop('strategy')
+        trainerParams.pop("accelerator")
+        trainerParams.pop("devices")
+        trainerParams.pop("strategy")
 
     trainer = L.Trainer(**trainerParams)
     if tuning:
@@ -331,10 +331,10 @@ def init_model(config) -> L.LightningModule:
     try:
         # TODO: Add support for logging model graph in combined logger
         if config.logging.args.log_graph:
-            if not hasattr(model, 'example_input_array'):
-                LOGGER.info('[yellow bold] WARNING [/yellow bold]: Model does not `example_input_array`')
-                LOGGER.info('[yellow bold italic]Model must have `example_input_array` attribute when log_graph=True')
-                LOGGER.info('[blue] Setting log_graph=False')
+            if not hasattr(model, "example_input_array"):
+                LOGGER.info("[yellow bold] WARNING [/yellow bold]: Model does not `example_input_array`")
+                LOGGER.info("[yellow bold italic]Model must have `example_input_array` attribute when log_graph=True")
+                LOGGER.info("[blue] Setting log_graph=False")
                 config.logging.log_graph = False
     except Exception:
         pass
@@ -355,17 +355,17 @@ def init(config, **kwargs):
 
     trainer, logger = init_trainer(config, **kwargs)
 
-    if 'seed' in config:
+    if "seed" in config:
         # NOTE: Make sure to do this after logging is initialized
         # (Otherwise MLFlow will generate the same run name for different runs)
         # and before initializing model
         seed_everything(config.seed, True)
 
     model = init_model(config)
-    LOGGER.info(f'MODEL INITIALIZED: {model.__class__.__name__}')
+    LOGGER.info(f"MODEL INITIALIZED: {model.__class__.__name__}")
 
     dm = init_from_cfg(config.data)
-    LOGGER.info(f'DATAMODULE INITIALIZED: {dm.__class__.__name__}')
+    LOGGER.info(f"DATAMODULE INITIALIZED: {dm.__class__.__name__}")
 
     return model, dm, trainer, logger
 
@@ -383,9 +383,9 @@ def train(config, **kwargs) -> tuple[L.LightningModule, L.LightningDataModule, L
 
     model, dm, trainer, logger = init(config, **kwargs)
 
-    LOGGER.info('TRAINING START')
+    LOGGER.info("TRAINING START")
     trainer.fit(model=model, datamodule=dm)
-    LOGGER.info('TRAINING DONE')
+    LOGGER.info("TRAINING DONE")
 
     return model, dm, trainer, logger
 
@@ -402,23 +402,23 @@ def train_and_test(config, **kwargs):
     """
 
     model, dm, trainer, logger = train(config, **kwargs)
-    if not is_overridden('test_step', model):
-        LOGGER.info('No testing step found on model. Skipping testing')
+    if not is_overridden("test_step", model):
+        LOGGER.info("No testing step found on model. Skipping testing")
         return None
 
     try:
         testing_results = None
-        if 'evaluator' in config:
-            LOGGER.info('EVALUATING START')
+        if "evaluator" in config:
+            LOGGER.info("EVALUATING START")
             evaluate_model(config, model, logger, dm)
-            LOGGER.info('EVALUATING DONE')
+            LOGGER.info("EVALUATING DONE")
         else:
-            LOGGER.info('TESTING START')
+            LOGGER.info("TESTING START")
             testing_results = trainer.test(model=model, datamodule=dm)
-            LOGGER.info('TESTING DONE')
+            LOGGER.info("TESTING DONE")
         return testing_results
     except Exception as e:
-        LOGGER.error('error during test')
+        LOGGER.error("error during test")
         LOGGER.exception(e)
 
 
@@ -439,7 +439,7 @@ def main(args=None):
     if config.name is None:
         import sys
 
-        LOGGER.error('Experiment name must be specified')
+        LOGGER.error("Experiment name must be specified")
         sys.exit(1)
 
     results = train_and_test(config)
@@ -455,5 +455,5 @@ def build_cli_parser(args=None):
     return cli
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -35,7 +35,7 @@ class ToNumpyImage:
 class BlendMode(Enum):
     linear = "linear"
     composite = "composite"
-    semantic = "semantic" # turn into label image/semantic map of integers for each image or mask
+    semantic = "semantic"  # turn into label image/semantic map of integers for each image or mask
 
 
 # AggFn = 'occlusion' | 'occlude' | '*' | 'multiply' | 'prod' | 'sum'
@@ -150,11 +150,13 @@ class ImageBlend:
 
         match self.blend_mode:
             case BlendMode.semantic:
-                filtered = np.stack([self.prefilter_fn(img.astype(np.float32))  for i, img in enumerate(images)])
+                filtered = np.stack([self.prefilter_fn(img.astype(np.float32)) for i, img in enumerate(images)])
             case _:
                 weights = self.make_weights(len(images))
                 weights[0] = 1.0
-                filtered = np.stack([self.prefilter_fn(img.astype(np.float32)) * weights[i] for i, img in enumerate(images)])
+                filtered = np.stack(
+                    [self.prefilter_fn(img.astype(np.float32)) * weights[i] for i, img in enumerate(images)]
+                )
 
         # print(filtered.dtype, filtered.shape, filtered.min(), filtered.max())
         match self.agg_fn:

@@ -1,4 +1,3 @@
-
 from aibox.logger import get_logger
 
 LOGGER = get_logger(__name__)
@@ -11,7 +10,6 @@ try:
 
     from aibox.ffcv.utils import field_to_str, obj_to_field
     from aibox.utils import as_path
-
 
     def create_beton_wrapper(
         torch_dataset: Dataset,
@@ -132,4 +130,4 @@ try:
             LOGGER.info("Done.")
 
 except ImportError as e:
-    LOGGER.error(f'Error: {e}')
+    LOGGER.error(f"Error: {e}")
