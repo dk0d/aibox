@@ -402,9 +402,6 @@ def train_and_test(config, **kwargs):
     """
 
     model, dm, trainer, logger = train(config, **kwargs)
-    if not is_overridden("test_step", model):
-        LOGGER.info("No testing step found on model. Skipping testing")
-        return None
 
     try:
         testing_results = None
@@ -413,9 +410,12 @@ def train_and_test(config, **kwargs):
             evaluate_model(config, model, logger, dm)
             LOGGER.info("EVALUATING DONE")
         else:
-            LOGGER.info("TESTING START")
-            testing_results = trainer.test(model=model, datamodule=dm)
-            LOGGER.info("TESTING DONE")
+            if is_overridden("test_step", model):
+                LOGGER.info("TESTING START")
+                testing_results = trainer.test(model=model, datamodule=dm)
+                LOGGER.info("TESTING DONE")
+            else:
+                LOGGER.info("No testing step found on model. Skipping testing")
         return testing_results
     except Exception as e:
         LOGGER.error("error during test")
