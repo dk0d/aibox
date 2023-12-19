@@ -44,7 +44,7 @@ class InputMonitor(L.Callback):
                     return
 
                 experiment.add_histogram("input", x, global_step=trainer.global_step)
-        except:
+        except Exception:
             pass
 
 

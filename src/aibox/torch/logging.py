@@ -37,6 +37,11 @@ try:
 
         @property
         @rank_zero_experiment
+        def tracking_uri(self) -> str:
+            return self._tracking_uri
+
+        @property
+        @rank_zero_experiment
         def experiment_name(self) -> str:
             return self._experiment_name
 

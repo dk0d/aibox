@@ -12,8 +12,9 @@ from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.utilities.model_helpers import is_overridden
 
 from aibox.cli import AIBoxCLI, OmegaConf
-from aibox.config import config_update, init_from_cfg
+from aibox.config import class_from_string, config_update, init_from_cfg
 from aibox.logger import get_logger
+from aibox.mlflow import MLFlowHelper
 from aibox.torch.evaluate import evaluate_model
 
 try:
@@ -387,7 +388,33 @@ def train(config, **kwargs) -> tuple[L.LightningModule, L.LightningDataModule, L
     trainer.fit(model=model, datamodule=dm)
     LOGGER.info("TRAINING DONE")
 
-    return model, dm, trainer, logger
+    best = get_best_model(model, trainer, logger, config)
+    return best, dm, trainer, logger
+
+
+def get_best_model(model, trainer, logger, config):
+    checkpoint_callback = trainer.checkpoint_callback
+    best = None
+    if checkpoint_callback is not None:
+        LOGGER.info(f"Loading best checkpoint: {checkpoint_callback.best_model_path}")
+        try:
+            Model = class_from_string(config.model.__classpath__)
+            best = Model.load_from_checkpoint(checkpoint_callback.best_model_path)
+        except Exception:
+            pass
+        else:
+            if hasattr(logger, "tracking_uri"):
+                helper = MLFlowHelper(logger.tracking_uri)
+                run = helper.get_run(logger.run_id)
+                config, best = helper.load_ckpt_from_run(run)
+
+        if best is None:
+            LOGGER.error("Failed to load best checkpoint, using model state at end of training", exc_info=True)
+        else:
+            LOGGER.info("Loaded best checkpoint")
+    else:
+        LOGGER.error("No checkpoint callback found, using model state at end of training")
+    return model if best is None else best
 
 
 def train_and_test(config, **kwargs):
