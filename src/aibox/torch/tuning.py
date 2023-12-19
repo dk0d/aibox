@@ -9,7 +9,7 @@ import ray.train.lightning
 # import ray.train as ray_train
 # from ray.train.lightning import prepare_trainer
 import torch
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from ray import air, tune
 from ray.air.config import CheckpointConfig
 from ray.air.integrations.mlflow import MLflowLoggerCallback
@@ -202,6 +202,33 @@ def get_tuner_type(_type, values, mode="ray"):
 #     return tune_config
 
 
+def search_space_to_dotlist(_dict: dict | list, keys_only=False, delimiter=".") -> dict | list:
+    _new_dict = {}
+
+    if isinstance(_dict, list):
+        entries = enumerate(_dict)
+    else:
+        entries = _dict.items()
+
+    for k, v in entries:
+        if isinstance(v, (dict, list, DictConfig, ListConfig)):
+            if isinstance(v, (dict, DictConfig)) and v.keys() == {"type", "values"}:
+                _new_dict[f"{k}"] = get_tuner_type(v["type"], v["values"])
+            else:
+                _d: dict = search_space_to_dotlist(v)
+                for _k, _v in _d.items():
+                    _new_dict[f"{k}{delimiter}{_k}"] = _v
+        else:
+            _new_dict[k] = v
+
+    if keys_only:
+        ks = list(_new_dict.keys())
+        ks.sort()
+        return ks
+
+    return _new_dict
+
+
 def gather_search_spaces_ray(config) -> dict[str, Any]:
     """
     Gather the Ray search spaces for all hyperparameters given a configuration.
@@ -212,11 +239,7 @@ def gather_search_spaces_ray(config) -> dict[str, Any]:
     Returns:
         A dictionary of search spaces.
     """
-    tune_config = {}
-    for s, v in config.tuner.search_spaces.items():
-        for k, v in v.items():
-            tk = ".".join([s, "args", k])
-            tune_config[tk] = get_tuner_type(v["type"], v["values"])
+    tune_config = search_space_to_dotlist(config.tuner.search)
     return tune_config
 
 
