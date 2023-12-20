@@ -394,20 +394,27 @@ def train(config, **kwargs) -> tuple[L.LightningModule, L.LightningDataModule, L
 
 def get_best_model(model, trainer, logger, config):
     checkpoint_callback = trainer.checkpoint_callback
-    best = None
+    best, error  = None, None
     if checkpoint_callback is not None:
         LOGGER.info(f"Loading best checkpoint: {checkpoint_callback.best_model_path}")
         try:
             Model = class_from_string(config.model.__classpath__)
             best = Model.load_from_checkpoint(checkpoint_callback.best_model_path)
-        except Exception:
-            if hasattr(logger, "tracking_uri"):
+        except Exception as e:
+            error = e
+    
+        if best is None:
+            try:
                 helper = MLFlowHelper(logger.tracking_uri)
                 run = helper.get_run(logger.run_id)
                 config, best = helper.load_ckpt_from_run(run)
-
+            except Exception as e:
+                error = e
+                
         if best is None:
-            LOGGER.error("Failed to load best checkpoint, using model state at end of training", exc_info=True)
+            LOGGER.error("Failed to load best checkpoint, using model state at end of training")
+            if error is not None:
+                LOGGER.error(f"{error.__class__.__name__}: {error}")
         else:
             LOGGER.info("Loaded best checkpoint")
     else:
@@ -430,6 +437,8 @@ def train_and_test(config, **kwargs):
 
     try:
         testing_results = None
+        # if trainer.fast_dev_run:
+        #     LOGGER.info("Skipping testing in fast_dev_run mode")
         if "evaluator" in config:
             LOGGER.info("EVALUATING START")
             evaluate_model(config, model, logger, dm)
