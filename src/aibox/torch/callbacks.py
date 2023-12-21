@@ -142,8 +142,8 @@ class LogImagesCallback(L.Callback):
 
     def __init__(
         self,
-        step_frequency=100000,
-        frequency_increase_base=2,
+        step_freq=100000,
+        step_freq_base=2,
         max_images=8,
         clamp=True,
         rescale=False,
@@ -160,8 +160,8 @@ class LogImagesCallback(L.Callback):
         Create a new LogImagesCallback.
 
         Args:
-            step_frequency (int, optional): Log images every `step_frequency` steps. Defaults to 100000.
-            frequency_increase_base (int, optional): Base of the exponential increase of the log frequency.
+            step_freq (int, optional): Log images every `step_frequency` steps. Defaults to 100000.
+            step_freq_base (int, optional): Base of the exponential increase of the log frequency.
                 Defaults to 2.
             max_images (int, optional): Maximum number of images to log. Defaults to 8.
             clamp (bool, optional): Clamp images to [0, 1]. Defaults to True.
@@ -177,7 +177,7 @@ class LogImagesCallback(L.Callback):
             disabled (bool, optional): Disable the callback. Defaults to False.
         """
         super().__init__()
-        self.step_frequency = step_frequency
+        self.step_frequency = step_freq
         self.max_images = max_images
         self.images_as_single_grid = images_as_single_grid
         self.log_on_batch_idx = log_on_batch_idx
@@ -187,7 +187,7 @@ class LogImagesCallback(L.Callback):
         self.clamp = clamp
         self.get_log_images_kwargs = get_log_images_kwargs if get_log_images_kwargs is not None else {}
         self.interlace_images = interlace_images
-        self.frequency_increase_base = frequency_increase_base
+        self.frequency_increase_base = step_freq_base
         self.increase_log_steps = increase_log_steps
         self._setup_log_steps()
         self._logger_log_images = {
