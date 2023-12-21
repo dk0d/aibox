@@ -148,6 +148,23 @@ def config_update(config, key, value, **kwargs):
     return config
 
 
+def config_get(config, key, default=None):
+    """
+    Gets a value from the config. Does not throw if the string interpolation fails or if the key is missing.
+    Returns the default value in those cases.
+
+    Returns:
+        value if key exists, default otherwise
+    """
+    return config_select(
+        config,
+        key=key,
+        default=default,
+        throw_on_resolution_failure=False,
+        throw_on_missing=False,
+    )
+
+
 def init_from_cfg(config: Config, *args, **kwargs):
     """Builds an object from the given configuration
 
