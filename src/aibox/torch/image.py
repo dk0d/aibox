@@ -28,7 +28,7 @@ def is_tensor_list(images: list) -> TypeGuard[list[torch.Tensor]]:
     return all(isinstance(image, torch.Tensor) for image in images)
 
 
-def interlace_images(images: list[torch.Tensor], maxImages: int = 8):
+def interlace_images(images: list[torch.Tensor], maxImages: int = 8) -> torch.Tensor:
     """
     assumes image tensors are of shape (batch, channels, height, width)
 
@@ -40,8 +40,10 @@ def interlace_images(images: list[torch.Tensor], maxImages: int = 8):
         return images[0]
 
     numImages = min(images[0].shape[0], maxImages)
-    logIms = [torch.stack(row, dim=0) for row in zip(*[im[:numImages].detach().cpu() for im in images])]
-    return torch.cat(logIms, dim=0)
+    # logIms = [torch.stack(row, dim=0) for row in zip(*[im[:numImages] for im in images])]
+    # return torch.cat(logIms, dim=0).detach().cpu()
+    logIms = torch.hstack([im[:numImages, None] for im in images]).flatten(0, 1)
+    return logIms
 
 
 def imshow(
@@ -70,7 +72,7 @@ def display_images(
         else:
             raise ValueError("images must be a list of PIL Images or Tensors")
         if interlace:
-            tensors = interlace_images(tensors)
+            tensors = interlace_images(tensors).detach().cpu()
         else:
             tensors = torch.cat(tensors, dim=0)
     else:
