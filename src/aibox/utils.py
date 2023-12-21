@@ -143,6 +143,17 @@ def is_list_of(obj: Sequence, T) -> TypeGuard[Sequence]:
     return all(isinstance(el, T) for el in obj)
 
 
+def path_from_uri(path: str | Path) -> bool:
+    import re
+
+    match = re.search(r"^file://(.+)", str(path))
+
+    if match is not None:
+        p = match.group(1)
+        return as_path(p)
+    return as_path(path)
+
+
 def as_path(path: str | Path) -> Path:
     return Path(path).expanduser().resolve()
 
