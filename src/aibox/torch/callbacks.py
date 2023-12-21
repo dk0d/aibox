@@ -10,9 +10,49 @@ from mlflow.client import MlflowClient
 from PIL import Image
 from torch.utils.tensorboard.writer import SummaryWriter
 
+from aibox.logger import get_logger
 from aibox.torch.image import interlace_images
 from aibox.torch.logging import CombinedLogger
-from aibox.utils import nearest_square_grid
+from aibox.utils import as_path, nearest_square_grid, path_from_uri
+
+LOGGER = get_logger(__name__)
+
+
+class CudaMemoryLogger(L.Callback):
+    """
+    From [understanding-gpu-memory-1](https://pytorch.org/blog/understanding-gpu-memory-1)
+
+    """
+
+    def __init__(
+        self,
+        filename="cuda_mem",
+        max_entries=100_000,
+        verbose=False,
+    ):
+        super().__init__()
+        self.filename = filename
+        self.max_entries = max_entries
+        self.verbose = verbose
+
+    def on_train_start(self, trainer: "L.Trainer", l_module: "L.LightningModule") -> None:
+        torch.cuda.memory._record_memory_history(max_entries=self.max_entries)
+        if self.verbose:
+            LOGGER.info(f"Recording cuda memory history (max_entries={self.max_entries})")
+
+    def on_train_end(self, trainer: "L.Trainer", l_module: "L.LightningModule") -> None:
+        try:
+            log_dir = path_from_uri(trainer.logger.log_dir) if trainer.logger is not None else as_path("./")
+            filename = (log_dir / self.filename).with_suffix(".pickle").as_posix()
+            if self.verbose:
+                LOGGER.info(f"Dumping memory snapshot to: {filename}")
+            torch.cuda.memory._dump_snapshot(filename)
+        except Exception as e:
+            if self.verbose:
+                LOGGER.error("Failed to dump memory snapshot")
+                LOGGER.exception(e)
+
+        torch.cuda.memory._record_memory_history(enabled=None)
 
 
 class InputMonitor(L.Callback):
@@ -299,6 +339,7 @@ class LogImagesCallback(L.Callback):
             with torch.no_grad():
                 images: list[torch.Tensor] = pl_module.get_log_images(batch, split=split, **self.get_log_images_kwargs)
                 if isinstance(images, dict):
+                    # TODO: use names to title the images
                     image_names, images = list(images.keys()), list(images.values())
 
             _logger_log_images = self._logger_log_images.get(logger, self._NOOP_log)
