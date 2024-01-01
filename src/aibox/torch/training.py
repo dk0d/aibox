@@ -12,7 +12,7 @@ from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.utilities.model_helpers import is_overridden
 
 from aibox.cli import AIBoxCLI, OmegaConf
-from aibox.config import class_from_string, config_update, init_from_cfg
+from aibox.config import class_from_string, config_update, init_from_cfg, config_get
 from aibox.logger import get_logger
 from aibox.mlflow import MLFlowHelper
 from aibox.torch.evaluate import evaluate_model
@@ -394,7 +394,7 @@ def train(config, **kwargs) -> tuple[L.LightningModule, L.LightningDataModule, L
 
 def get_best_model(model, trainer, logger, config):
     checkpoint_callback = trainer.checkpoint_callback
-    best, error  = None, None
+    best, error = None, None
     if checkpoint_callback is not None:
         LOGGER.info(f"Loading best checkpoint: {checkpoint_callback.best_model_path}")
         try:
@@ -402,7 +402,7 @@ def get_best_model(model, trainer, logger, config):
             best = Model.load_from_checkpoint(checkpoint_callback.best_model_path)
         except Exception as e:
             error = e
-    
+
         if best is None:
             try:
                 helper = MLFlowHelper(logger.tracking_uri)
@@ -410,7 +410,7 @@ def get_best_model(model, trainer, logger, config):
                 config, best = helper.load_ckpt_from_run(run)
             except Exception as e:
                 error = e
-                
+
         if best is None:
             LOGGER.error("Failed to load best checkpoint, using model state at end of training")
             if error is not None:
@@ -432,14 +432,29 @@ def train_and_test(config, **kwargs):
     Returns:
         A tuple of model, datamodule, and trainer.
     """
+    # max_entries = 100_000
+    # filename = "cuda_mem"
+    # torch.cuda.memory._record_memory_history(max_entries=max_entries)
+    # LOGGER.info(f"Recording cuda memory history (max_entries={max_entries})")
 
     model, dm, trainer, logger = train(config, **kwargs)
+
+    # try:
+    #     log_dir = path_from_uri(trainer.logger.log_dir) if trainer.logger is not None else as_path("./")
+    #     filename = (log_dir / filename).with_suffix(".pickle").as_posix()
+    #     LOGGER.info(f"Dumping memory snapshot to: {filename}")
+    #     torch.cuda.memory._dump_snapshot(filename)
+    # except Exception as e:
+    #     LOGGER.error("Failed to dump memory snapshot")
+    #     LOGGER.exception(e)
+    #
+    # torch.cuda.memory._record_memory_history(enabled=None)
 
     try:
         testing_results = None
         # if trainer.fast_dev_run:
         #     LOGGER.info("Skipping testing in fast_dev_run mode")
-        if "evaluator" in config:
+        if "evaluator" in config and not config_get(config, key="evaluator.__disable__", default=False):
             LOGGER.info("EVALUATING START")
             evaluate_model(config, model, logger, dm)
             LOGGER.info("EVALUATING DONE")
