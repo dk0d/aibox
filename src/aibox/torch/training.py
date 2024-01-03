@@ -20,10 +20,18 @@ from aibox.torch.evaluate import evaluate_model
 try:
     from lightning.pytorch.plugins.environments import LightningEnvironment  # type: ignore
     from ray import train as ray_train
+    import ray.train.torch  # NOTE: needed per https://discuss.ray.io/t/ray-train-v1-9-1-returns-an-attributeerror-module-ray-train-has-no-attribute-torch/4541
     from ray._private.usage.usage_lib import TagKey, record_extra_usage_tag
     from ray.train.lightning import RayDDPStrategy, RayLightningEnvironment
-    from ray.train.lightning._lightning_utils import get_worker_root_device
     from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback
+
+    def get_worker_root_device():
+        """Get the first torch device of the current worker if there are multiple."""
+        devices = ray.train.torch.get_device()
+        if isinstance(devices, list):
+            return devices[0]
+        else:
+            return devices
 
     class RayDDPStrategyWrapper(RayDDPStrategy, DDPStrategy):
         """Subclass of DDPStrategy to ensure compatibility with Ray orchestration.
