@@ -5,13 +5,7 @@ import lightning as L
 import yaml
 
 import mlflow
-from aibox.config import (
-    Config,
-    class_from_string,
-    config_from_path,
-    derive_args,
-    derive_classpath,
-)
+from aibox.config import Config, class_from_string, config_from_path, derive_args, derive_classpath, resolve_paths
 from aibox.logger import get_logger
 from aibox.torch.utils import get_device
 from aibox.utils import as_path
@@ -188,8 +182,6 @@ class MLFlowHelper:
         config_file="config.yml",
         new_root=None,
     ):
-        from .utils import resolve_paths
-
         # try:
         # param_config = config_from_dotlist([f"{k}={v}" for k, v in run.data.params.items()])
         # return param_config
