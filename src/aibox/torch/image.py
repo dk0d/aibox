@@ -1,22 +1,23 @@
 try:
-    import torch
     from torchvision.transforms import ToPILImage, ToTensor
     from torchvision.utils import make_grid
+
+    import torch
 except ImportError:
     import sys
 
     print("pytorch required for these utilities")
     sys.exit(1)
 
+from pathlib import Path
 from typing import TypeGuard
 
 import matplotlib.pyplot as plt
 import numpy as np
-from PIL import Image as PILImage
-from skimage.util import compare_images
-
 from aibox.torch.transforms import ToNumpyImage
 from aibox.utils import is_list_of
+from PIL import Image as PILImage
+from skimage.util import compare_images
 
 
 def is_image_list(images: list):
@@ -46,6 +47,14 @@ def interlace_images(images: list[torch.Tensor], maxImages: int = 8) -> torch.Te
     return logIms
 
 
+def imsave(
+    image: np.ndarray,
+    path: Path,
+):
+    with path.open('wb') as fp:
+        PILImage.Image.save(image, fp)
+
+
 def imshow(
     image: np.ndarray,
     figsize=(12, 12),
@@ -63,6 +72,7 @@ def display_images(
     normalize=False,
     interlace=False,
     padding=1,
+    save_path: Path | None = None,
 ):
     if isinstance(images, (list, tuple)):
         if is_image_list(images):
@@ -77,11 +87,20 @@ def display_images(
             tensors = torch.cat(tensors, dim=0)
     else:
         tensors = images
-    image = ToPILImage()(make_grid(tensors, nrow=n_columns, padding=padding, normalize=normalize))
-    imshow(
-        image=image,
-        figsize=figsize,
+    image = ToPILImage()(
+        make_grid(tensors, nrow=n_columns, padding=padding, normalize=normalize)
     )
+    if save_path is None:
+        imshow(
+            image=image,
+            figsize=figsize,
+        )
+    else:
+        imsave(
+            image=image,
+            path=save_path,
+        )
+        plt.close()
 
 
 def n_channels_to_pil_mode(n_channels: int | str) -> str:
@@ -117,7 +136,11 @@ def show_tensor_image(image: torch.Tensor):
     plt.imshow(reverseTransforms(image))
 
 
-def image_diff(image1: torch.Tensor | np.ndarray, image2: torch.Tensor | np.ndarray, return_tensor=True):
+def image_diff(
+    image1: torch.Tensor | np.ndarray,
+    image2: torch.Tensor | np.ndarray,
+    return_tensor=True,
+):
     to_numpy = ToNumpyImage()
     i1 = to_numpy(image1) if isinstance(image1, torch.Tensor) else image1
     i2 = to_numpy(image2) if isinstance(image2, torch.Tensor) else image2
@@ -135,8 +158,14 @@ def calc_shape_2d_conv(
     dilation=(1, 1),
     kernel_size=(3, 3),
 ):
-    H_out = np.floor((H_in + 2 * padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) / (stride[0]) + 1)
-    W_out = np.floor((W_in + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) / (stride[1]) + 1)
+    H_out = np.floor(
+        (H_in + 2 * padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) / (stride[0])
+        + 1
+    )
+    W_out = np.floor(
+        (W_in + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) / (stride[1])
+        + 1
+    )
     return H_out, W_out
 
 
@@ -149,8 +178,20 @@ def calc_shape_2d_transpose(
     kernel_size=(3, 3),
     output_padding=(1, 1),
 ):
-    H_out = (H_in - 1) * stride[0] - 2 * padding[0] + dilation[0] * (kernel_size[0] - 1) + output_padding[0] + 1
-    W_out = (W_in - 1) * stride[1] - 2 * padding[1] + dilation[1] * (kernel_size[1] - 1) + output_padding[1] + 1
+    H_out = (
+        (H_in - 1) * stride[0]
+        - 2 * padding[0]
+        + dilation[0] * (kernel_size[0] - 1)
+        + output_padding[0]
+        + 1
+    )
+    W_out = (
+        (W_in - 1) * stride[1]
+        - 2 * padding[1]
+        + dilation[1] * (kernel_size[1] - 1)
+        + output_padding[1]
+        + 1
+    )
     return H_out, W_out
 
 
