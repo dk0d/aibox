@@ -34,6 +34,16 @@ def print_config(config):
     rich.print_json(json.dumps(OmegaConf.to_container(config)))
 
 
+def rewrite_config_paths(config, orig_root, new_root):
+    new_config = config.copy()
+    dot_list = config_to_dotlist(config)
+    for k, v in dot_list.items():
+        if isinstance(v, str):
+            if as_path(v).is_relative_to(orig_root):
+                config_update(new_config, k, str(new_root / as_path(v).relative_to(orig_root)))
+    return new_config
+
+
 def derive_classpath_deprecated(config: Config) -> str:
     """Derives the classpath from the given config"""
     conf = config_to_dict(config)

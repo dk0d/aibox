@@ -2,11 +2,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import lightning as L
-import mlflow
 import yaml
-from mlflow.entities import Run
-from mlflow.store.entities.paged_list import PagedList
 
+import mlflow
 from aibox.config import (
     Config,
     class_from_string,
@@ -17,6 +15,8 @@ from aibox.config import (
 from aibox.logger import get_logger
 from aibox.torch.utils import get_device
 from aibox.utils import as_path
+from mlflow.entities import Run
+from mlflow.store.entities.paged_list import PagedList
 
 LOGGER = get_logger(__name__)
 
@@ -245,7 +245,7 @@ class MLFlowHelper:
         """
 
         if experiment_ids is None:
-            exp_filter_string = None if experiment_name is None else f"attributes.name LIKE '%{experiment_name}%'"
+            exp_filter_string = None if experiment_name is None else f"attribute.name LIKE '%{experiment_name}%'"
             experiment_ids = [e.experiment_id for e in self.client.search_experiments(filter_string=exp_filter_string)]
 
         filters = [(f"attributes.run_name LIKE '%{run_name}%'" if run_name is not None else None)]
