@@ -10,6 +10,7 @@ from lightning.pytorch.callbacks import Callback, RichProgressBar
 from lightning.pytorch.loggers import Logger
 from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.utilities.model_helpers import is_overridden
+from lightning.pytorch.tuner.tuning import Tuner
 
 from aibox.cli import AIBoxCLI, OmegaConf
 from aibox.config import class_from_string, config_update, init_from_cfg, config_get
@@ -317,6 +318,7 @@ def init_trainer(config, **kwargs):
         trainerParams.pop("strategy")
 
     trainer = L.Trainer(**trainerParams)
+
     if tuning:
         from ray.train.lightning import prepare_trainer
 
@@ -379,7 +381,7 @@ def init(config, **kwargs):
     return model, dm, trainer, logger
 
 
-def train(config, **kwargs) -> tuple[L.LightningModule, L.LightningDataModule, L.Trainer]:
+def train(config, **kwargs) -> tuple[L.LightningModule, L.LightningDataModule, L.Trainer, Logger | None]:
     """
     Run training from config.
 
@@ -391,6 +393,22 @@ def train(config, **kwargs) -> tuple[L.LightningModule, L.LightningDataModule, L
     """
 
     model, dm, trainer, logger = init(config, **kwargs)
+
+    # TODO: add, but does not work for DDP
+    # scale_batch_size_mode = config_get(
+    #     config,
+    #     key="scale_batch_size_mode",
+    #     default=None,
+    # )
+    # if scale_batch_size_mode is not None:
+    #     tuner = Tuner(trainer)
+    #     # Assumes data module has a `batch_size` attribute
+    #     tuner.scale_batch_size(
+    #         model=model,
+    #         mode=scale_batch_size_mode, # one of ["binsearch", "power"]
+    #         datamodule=dm,
+    #         init_val=2,
+    #     )
 
     LOGGER.info("TRAINING START")
     trainer.fit(model=model, datamodule=dm)

@@ -51,7 +51,7 @@ def imsave(
     image: np.ndarray,
     path: Path,
 ):
-    with path.open('wb') as fp:
+    with path.open("wb") as fp:
         PILImage.Image.save(image, fp)
 
 
@@ -65,15 +65,10 @@ def imshow(
     plt.show()
 
 
-def display_images(
-    images: list[PILImage.Image] | list[torch.Tensor] | torch.Tensor,
-    n_columns=1,
-    figsize=(12, 12),
-    normalize=False,
+def _images_to_tensor(
+    images: list[np.ndarray] | list[PILImage.Image] | list[torch.Tensor] | torch.Tensor,
     interlace=False,
-    padding=1,
-    save_path: Path | None = None,
-):
+) -> torch.Tensor:
     if isinstance(images, (list, tuple)):
         if is_image_list(images):
             tensors = [ToTensor()(s).unsqueeze(0) for s in images]
@@ -87,6 +82,51 @@ def display_images(
             tensors = torch.cat(tensors, dim=0)
     else:
         tensors = images
+
+    return tensors
+
+
+def save_images(
+    images: list[torch.Tensor] | torch.Tensor,
+    names: list[str],
+    save_dir: Path,
+    ext: str = "png",
+):
+    """save batch of images
+
+    if a list of torch.Tensor passed, assumes the batch should be interlaced
+
+    Args:
+        images (list[torch.Tensor] | torch.Tensor): _description_
+        names (list[str]): _description_
+        save_dir (Path): _description_
+        ext (str, optional): _description_. Defaults to "png".
+    """
+    ext = ext.lstrip(".")
+    save_dir.mkdir(parents=True, exist_ok=True)
+    transform = ToPILImage()
+    if isinstance(images, (list, tuple)):
+        for i, batch in enumerate(zip(*images, strict=True)):
+            for n, b in zip(names, batch, strict=True):
+                save_path = save_dir / f"{i}" / f"{n}.{ext}"
+                save_path.parent.mkdir(parents=True, exist_ok=True)
+                imsave(image=transform(b), path=save_path)
+    else:
+        for image, name in zip(images, names, strict=True):
+            save_path = save_dir / f"{name}.{ext}"
+            imsave(image=transform(image), path=save_path)
+
+
+def display_images(
+    images: list[np.ndarray] | list[PILImage.Image] | list[torch.Tensor] | torch.Tensor,
+    n_columns=1,
+    figsize=(12, 12),
+    normalize=False,
+    interlace=False,
+    padding=1,
+    save_path: Path | None = None,
+):
+    tensors = _images_to_tensor(images, interlace=interlace)
     image = ToPILImage()(
         make_grid(tensors, nrow=n_columns, padding=padding, normalize=normalize)
     )
