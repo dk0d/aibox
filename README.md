@@ -21,27 +21,12 @@ Models
 ```toml
 [model]
 class_path = "project.models.CNN" # required
-
-[model.args]
 in_channels = 3
 
-[[model.args.optimizers]] # makes an array of objects at the models.args.optimizers path
-class_path = 'torch.optim.Adam'
+[[model.optimizers]] # makes an array of objects at the models.args.optimizers path
+__classpath__ = 'torch.optim.Adam'
 args.lr = 1e-3
 
-
-```
-
-or
-
-```toml
-[model]
-class_path = "project.models.CNN" # required
-args.in_channels = 3
-
-[[model.args.optimizers]] # makes an array of objects at the models.args.optimizers path
-class_path = 'torch.optim.Adam'
-args.lr = 1e-3
 
 ```
 
@@ -50,7 +35,7 @@ Experiment
 ```toml
 
 [data]
-class_path = "torch"
+__classpath__ = "torch"
 
 [data.args]
 # ...
@@ -61,9 +46,7 @@ class_path = "torch"
 
 [tuner] # optional params for ray tune
 
-
 [tuner.values]
-
 param.values = [0, 1, 28]
 param.search_space = 'choice' # see raytune for search_space names
 
