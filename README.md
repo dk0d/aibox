@@ -10,7 +10,6 @@ My AI toolbox of helper functions and other assorted utils
   - for example: a model at the path `models/cnn/classifier1.toml` has the model configuration name `cnn/classifier1`
 - any `default.toml` in a folder or subfolder will be loaded first _before_ the specified configuration name
   - the specified config will override any parameters specified with the same key path from the default config
-- the `model`, `data`,
 
 > Refer to TOML spec for help on syntax: [TOML.io](https://toml.io/en/)
 
