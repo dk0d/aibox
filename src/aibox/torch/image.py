@@ -1,22 +1,23 @@
 try:
-    import torch
     from torchvision.transforms import ToPILImage, ToTensor
     from torchvision.utils import make_grid
+
+    import torch
 except ImportError:
     import sys
 
     print("pytorch required for these utilities")
     sys.exit(1)
 
+from pathlib import Path
 from typing import TypeGuard
 
 import matplotlib.pyplot as plt
 import numpy as np
-from PIL import Image as PILImage
-from skimage.util import compare_images
-
 from aibox.torch.transforms import ToNumpyImage
 from aibox.utils import is_list_of
+from PIL import Image as PILImage
+from skimage.util import compare_images
 
 
 def is_image_list(images: list):
@@ -46,6 +47,14 @@ def interlace_images(images: list[torch.Tensor], maxImages: int = 8) -> torch.Te
     return logIms
 
 
+def imsave(
+    image: np.ndarray,
+    path: Path,
+):
+    with path.open("wb") as fp:
+        PILImage.Image.save(image, fp)
+
+
 def imshow(
     image: np.ndarray,
     figsize=(12, 12),
@@ -56,14 +65,10 @@ def imshow(
     plt.show()
 
 
-def display_images(
-    images: list[PILImage.Image] | list[torch.Tensor] | torch.Tensor,
-    n_columns=1,
-    figsize=(12, 12),
-    normalize=False,
+def _images_to_tensor(
+    images: list[np.ndarray] | list[PILImage.Image] | list[torch.Tensor] | torch.Tensor,
     interlace=False,
-    padding=1,
-):
+) -> torch.Tensor:
     if isinstance(images, (list, tuple)):
         if is_image_list(images):
             tensors = [ToTensor()(s).unsqueeze(0) for s in images]
@@ -77,11 +82,65 @@ def display_images(
             tensors = torch.cat(tensors, dim=0)
     else:
         tensors = images
-    image = ToPILImage()(make_grid(tensors, nrow=n_columns, padding=padding, normalize=normalize))
-    imshow(
-        image=image,
-        figsize=figsize,
+
+    return tensors
+
+
+def save_images(
+    images: list[torch.Tensor] | torch.Tensor,
+    names: list[str],
+    save_dir: Path,
+    ext: str = "png",
+):
+    """save batch of images
+
+    if a list of torch.Tensor passed, assumes the batch should be interlaced
+
+    Args:
+        images (list[torch.Tensor] | torch.Tensor): _description_
+        names (list[str]): _description_
+        save_dir (Path): _description_
+        ext (str, optional): _description_. Defaults to "png".
+    """
+    ext = ext.lstrip(".")
+    save_dir.mkdir(parents=True, exist_ok=True)
+    transform = ToPILImage()
+    if isinstance(images, (list, tuple)):
+        for i, batch in enumerate(zip(*images, strict=True)):
+            for n, b in zip(names, batch, strict=True):
+                save_path = save_dir / f"{i}" / f"{n}.{ext}"
+                save_path.parent.mkdir(parents=True, exist_ok=True)
+                imsave(image=transform(b), path=save_path)
+    else:
+        for image, name in zip(images, names, strict=True):
+            save_path = save_dir / f"{name}.{ext}"
+            imsave(image=transform(image), path=save_path)
+
+
+def display_images(
+    images: list[np.ndarray] | list[PILImage.Image] | list[torch.Tensor] | torch.Tensor,
+    n_columns=1,
+    figsize=(12, 12),
+    normalize=False,
+    interlace=False,
+    padding=1,
+    save_path: Path | None = None,
+):
+    tensors = _images_to_tensor(images, interlace=interlace)
+    image = ToPILImage()(
+        make_grid(tensors, nrow=n_columns, padding=padding, normalize=normalize)
     )
+    if save_path is None:
+        imshow(
+            image=image,
+            figsize=figsize,
+        )
+    else:
+        imsave(
+            image=image,
+            path=save_path,
+        )
+        plt.close()
 
 
 def n_channels_to_pil_mode(n_channels: int | str) -> str:
@@ -117,7 +176,11 @@ def show_tensor_image(image: torch.Tensor):
     plt.imshow(reverseTransforms(image))
 
 
-def image_diff(image1: torch.Tensor | np.ndarray, image2: torch.Tensor | np.ndarray, return_tensor=True):
+def image_diff(
+    image1: torch.Tensor | np.ndarray,
+    image2: torch.Tensor | np.ndarray,
+    return_tensor=True,
+):
     to_numpy = ToNumpyImage()
     i1 = to_numpy(image1) if isinstance(image1, torch.Tensor) else image1
     i2 = to_numpy(image2) if isinstance(image2, torch.Tensor) else image2
@@ -135,8 +198,14 @@ def calc_shape_2d_conv(
     dilation=(1, 1),
     kernel_size=(3, 3),
 ):
-    H_out = np.floor((H_in + 2 * padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) / (stride[0]) + 1)
-    W_out = np.floor((W_in + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) / (stride[1]) + 1)
+    H_out = np.floor(
+        (H_in + 2 * padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) / (stride[0])
+        + 1
+    )
+    W_out = np.floor(
+        (W_in + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) / (stride[1])
+        + 1
+    )
     return H_out, W_out
 
 
@@ -149,8 +218,20 @@ def calc_shape_2d_transpose(
     kernel_size=(3, 3),
     output_padding=(1, 1),
 ):
-    H_out = (H_in - 1) * stride[0] - 2 * padding[0] + dilation[0] * (kernel_size[0] - 1) + output_padding[0] + 1
-    W_out = (W_in - 1) * stride[1] - 2 * padding[1] + dilation[1] * (kernel_size[1] - 1) + output_padding[1] + 1
+    H_out = (
+        (H_in - 1) * stride[0]
+        - 2 * padding[0]
+        + dilation[0] * (kernel_size[0] - 1)
+        + output_padding[0]
+        + 1
+    )
+    W_out = (
+        (W_in - 1) * stride[1]
+        - 2 * padding[1]
+        + dilation[1] * (kernel_size[1] - 1)
+        + output_padding[1]
+        + 1
+    )
     return H_out, W_out
 
 

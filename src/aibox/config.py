@@ -4,6 +4,7 @@ from typing import TypeAlias
 
 from omegaconf import DictConfig, OmegaConf
 
+from aibox.logger import get_logger
 from aibox.utils import as_path, as_uri
 
 
@@ -22,8 +23,20 @@ OmegaConf.register_new_resolver("basename", basename)
 
 Config: TypeAlias = DictConfig | dict
 
-SUPPORTED_INIT_TARGET_KEYS = ["__classpath__", "__class_path__", "__target__", "__init_target__"]
-SUPPORTED_INIT_ARGS_KEYS = ["__args__", "__kwargs__", "__init_args__", "__init_kwargs__"]
+SUPPORTED_INIT_TARGET_KEYS = [
+    "__classpath__",
+    "__class_path__",
+    "__target__",
+    "__init_target__",
+]
+SUPPORTED_INIT_ARGS_KEYS = [
+    "__args__",
+    "__kwargs__",
+    "__init_args__",
+    "__init_kwargs__",
+]
+
+LOGGER = get_logger(__name__)
 
 
 def print_config(config):
@@ -34,14 +47,17 @@ def print_config(config):
     rich.print_json(json.dumps(OmegaConf.to_container(config)))
 
 
-def rewrite_config_paths(config, orig_root, new_root):
-    new_config = config.copy()
-    dot_list = config_to_dotlist(config)
-    for k, v in dot_list.items():
-        if isinstance(v, str):
-            if as_path(v).is_relative_to(orig_root):
-                config_update(new_config, k, str(new_root / as_path(v).relative_to(orig_root)))
-    return new_config
+# def rewrite_config_paths(config, orig_root, new_root, verbose=False):
+#     new_config = config.copy()
+#     dot_list = config_to_dotlist(config)
+#     for k, v in dot_list.items():
+#         if verbose:
+#             print(k, v)
+#         if isinstance(v, str):
+#             if as_path(v).is_relative_to(orig_root):
+
+#                 config_update(new_config, k, str(new_root / as_path(v).relative_to(orig_root)))
+#     return new_config
 
 
 def derive_classpath_deprecated(config: Config) -> str:
@@ -52,7 +68,9 @@ def derive_classpath_deprecated(config: Config) -> str:
     elif "target" in conf:
         class_string = conf["target"]
     else:
-        raise KeyError("Expected one of `class_path` or `target` as module path to instantiate object")
+        raise KeyError(
+            "Expected one of `class_path` or `target` as module path to instantiate object"
+        )
     return class_string
 
 
@@ -68,12 +86,15 @@ def derive_classpath(config: Config) -> str:
             resolved.append((skey, value))
         elif value is not None:
             raise ValueError(
-                f"Multiple init targets specified in config: {skey} and {resolved[-1][0]}" f"are both present in {conf}"
+                f"Multiple init targets specified in config: {skey} and {resolved[-1][0]}"
+                f"are both present in {conf}"
             )
     class_string = resolved[-1][1] if len(resolved) > 0 else None
 
     if class_string is None:
-        raise KeyError(f"None of the supported init target keys found in config keys: {list(config.keys())}")
+        raise KeyError(
+            f"None of the supported init target keys found in config keys: {list(config.keys())}"
+        )
 
     return class_string
 
@@ -259,7 +280,10 @@ def config_to_dotlist(config: Config, delimiter="."):
     """
     if isinstance(config, dict):
         config = config_from_dict(config)
-    return flatten_dict(dict(**OmegaConf.to_container(config, resolve=True, enum_to_str=True)), delimiter=delimiter)
+    return flatten_dict(
+        dict(**OmegaConf.to_container(config, resolve=True, enum_to_str=True)),
+        delimiter=delimiter,
+    )
 
 
 def config_dump(config: Config, path: Path):
@@ -336,7 +360,9 @@ def yaml_to_toml(source_dir: Path, out_dir: Path, name_fn=None):
         print("yaml, tomlkit required")
         return
 
-    yamlConfigs = [(p, yaml.load(p.open("r"), yaml.Loader)) for p in source_dir.rglob("**/*.yaml")]
+    yamlConfigs = [
+        (p, yaml.load(p.open("r"), yaml.Loader)) for p in source_dir.rglob("**/*.yaml")
+    ]
     pprint(f"Found {len(yamlConfigs)} YAML Files")
     _configs_to_toml(yamlConfigs, source_dir, out_dir, name_fn)
 
@@ -385,3 +411,93 @@ class ConfigDict(dict):
         for k, v in self.items():
             if isinstance(v, dict):
                 self[k] = self.__dict_to_configdict__(v)
+
+
+def get_config_root(config):
+    paths = []
+    for k, v in config.items():
+        if ("root" in k or "dir" in k) and isinstance(v, str):
+            paths.append(as_path(v))
+        elif isinstance(v, dict):
+            paths.extend(get_config_root(v))
+    return paths
+
+
+def _resolve_paths(
+    config,
+    old_root,
+    new_root=Path.cwd(),
+    path_keys: list[str] | None = None,
+    verbose=False,
+):
+    if path_keys is None:
+        path_keys = []
+
+    for full_key, v in config_to_dotlist(config).items():
+        k = full_key.split(".")[-1]
+        if (
+            full_key in path_keys
+            or "root" in k
+            or "dir" in k
+            or "path" in k
+            or "file" in k
+        ) and (isinstance(v, Path | str)):
+            try:
+                p = as_path(v)
+                if p is not None and p.is_relative_to(old_root):
+                    if verbose:
+                        LOGGER.info(
+                            f"Replacing key {k}\n{p}\nwith\n{new_root / p.relative_to(old_root)}"
+                        )
+                    config_update(config, full_key, new_root / p.relative_to(old_root))
+                    # config[k] = new_root / p.relative_to(old_root)
+            except Exception as e:
+                if verbose:
+                    LOGGER.error(f"Could not resolve path for key {k}\n{v}\n{e}")
+
+
+def resolve_paths(
+    config,
+    new_root=Path.cwd(),
+    path_keys: list[str] | None = None,
+    verbose=False,
+):
+    """Resolves the most likely root path in a config based on all keys that contain
+    `root` or `dir` in their key name and replaces it with new_root
+
+    The old root is determined by finding the longest common path between all paths
+
+    Args:
+        config: the config to resolve paths in
+        new_root: the new root path to replace the old root path with.
+            Defaults to the current working directory
+        path_keys: explicitly set any extra keys to keys to resolve paths for.
+            e.g. ['model.checkpoint']
+            Defaults to None
+
+    """
+    from functools import reduce
+
+    def _path_intersection(p1, p2):
+        p1, p2 = as_path(p1), as_path(p2)
+        same = []
+        if p1 is not None and p2 is not None:
+            for c1, c2 in zip(p1.parts, p2.parts):
+                if c1 != c2:
+                    break
+                same.append(c1)
+        return as_path("/".join(same))
+
+    paths: list[Path] = get_config_root(config)
+    old_root = None
+    if len(paths) > 0:
+        old_root = reduce(lambda x, y: _path_intersection(x, y), paths)
+    if old_root is not None:
+        _resolve_paths(
+            config,
+            old_root=old_root,
+            new_root=new_root,
+            path_keys=path_keys,
+            verbose=verbose,
+        )
+    return config

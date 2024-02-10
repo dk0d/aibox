@@ -11,6 +11,7 @@ from aibox.config import (
     config_from_path,
     derive_args,
     derive_classpath,
+    resolve_paths,
 )
 from aibox.logger import get_logger
 from aibox.torch.utils import get_device
@@ -29,7 +30,9 @@ class MLFlowHelper:
     ):
         self.tracking_uri = tracking_uri
         self.registry_uri = registry_uri
-        self.client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
+        self.client = mlflow.MlflowClient(
+            tracking_uri=tracking_uri, registry_uri=registry_uri
+        )
 
     def get_run(self, run_id):
         return self.client.get_run(run_id=run_id)
@@ -137,6 +140,8 @@ class MLFlowHelper:
         alias="best",
         new_root=None,
         init_model=True,
+        verbose=False,
+        path_keys: list[str] | None = None,
         **model_kwargs,
     ) -> tuple[Config, L.LightningModule]:
         """
@@ -149,6 +154,7 @@ class MLFlowHelper:
             init_model (bool, optional): whether or not to call `load_from_checkpoint()`. If False,
                 will just load the raw ckpt file with `torch.load()`
                 Defaults to True.
+            path_keys (list[str], optional)
             **model_kwargs: [description]. extra params passed to model initializer. Defaults to {}.
 
         Returns:
@@ -162,7 +168,12 @@ class MLFlowHelper:
             artifact_path="model",
             tracking_uri=self.tracking_uri,
         )
-        config = self.load_config_from_run(run, new_root=new_root)
+        config = self.load_config_from_run(
+            run,
+            new_root=new_root,
+            path_keys=path_keys,
+            verbose=verbose,
+        )
         checkpoints = get_mlflow_checkpoints(Path(model_dir))
         best = [c.path for c in checkpoints if alias in c.aliases][-1]
         # try:
@@ -173,7 +184,9 @@ class MLFlowHelper:
             Model: L.LightningModule = class_from_string(derive_classpath(model_cfg))
             device = get_device()
             model_kwargs.update(map_location=device)
-            model = Model.load_from_checkpoint(best, **derive_args(model_cfg, **model_kwargs))
+            model = Model.load_from_checkpoint(
+                best, **derive_args(model_cfg, **model_kwargs)
+            )
         else:
             import torch
 
@@ -187,9 +200,9 @@ class MLFlowHelper:
         run: Run,
         config_file="config.yml",
         new_root=None,
+        path_keys: list[str] | None = None,
+        verbose=False,
     ):
-        from .utils import resolve_paths
-
         # try:
         # param_config = config_from_dotlist([f"{k}={v}" for k, v in run.data.params.items()])
         # return param_config
@@ -203,7 +216,12 @@ class MLFlowHelper:
             config = config_from_path(config_path)
 
             if new_root is not None:
-                resolve_paths(config, new_root)
+                resolve_paths(
+                    config,
+                    new_root,
+                    path_keys=path_keys,
+                    verbose=verbose,
+                )
             return config
         except Exception as e:
             raise Exception(f"Error loading config for run ID: {run.info.run_id} - {e}")
@@ -245,17 +263,34 @@ class MLFlowHelper:
         """
 
         if experiment_ids is None:
-            exp_filter_string = None if experiment_name is None else f"attribute.name LIKE '%{experiment_name}%'"
-            experiment_ids = [e.experiment_id for e in self.client.search_experiments(filter_string=exp_filter_string)]
+            exp_filter_string = (
+                None
+                if experiment_name is None
+                else f"attribute.name LIKE '%{experiment_name}%'"
+            )
+            experiment_ids = [
+                e.experiment_id
+                for e in self.client.search_experiments(filter_string=exp_filter_string)
+            ]
 
-        filters = [(f"attributes.run_name LIKE '%{run_name}%'" if run_name is not None else None)]
+        filters = [
+            (
+                f"attributes.run_name LIKE '%{run_name}%'"
+                if run_name is not None
+                else None
+            )
+        ]
 
         if filter_string is not None:
             filters.append(filter_string)
 
         filters = [f for f in filters if f is not None]
 
-        filter_string = " AND ".join(f for f in filters if f is not None) if len(filters) > 0 else ""
+        filter_string = (
+            " AND ".join(f for f in filters if f is not None)
+            if len(filters) > 0
+            else ""
+        )
 
         order_by = order_by if order_by is not None else ["metrics.`test/loss` DESC"]
 
@@ -279,7 +314,9 @@ class MLFlowHelper:
         run_id: str = run.info.run_id if isinstance(run, Run) else run
         return self.client.list_artifacts(run_id)
 
-    def get_artifact(self, run: Run | str, path: str, dst_path: str | None = None) -> Path:
+    def get_artifact(
+        self, run: Run | str, path: str, dst_path: str | None = None
+    ) -> Path:
         run_id: str = run.info.run_id if isinstance(run, Run) else run
         return as_path(self.client.download_artifacts(run_id, path, dst_path))
 
@@ -361,14 +398,20 @@ def fix_mlflow_artifact_paths(mlflow_root: Path):
 
         # Fix experiment metadata
         if metadata_file.exists():
-            rewrite_artifact_path(metadata_file, experiment_folder, artifact_path_key="artifact_location")
+            rewrite_artifact_path(
+                metadata_file, experiment_folder, artifact_path_key="artifact_location"
+            )
         for run_folder in experiment_folder.iterdir():
             metadata_file = run_folder / "meta.yaml"
             LOGGER.info(run_folder)
 
             # Fix run metadata
             if metadata_file.exists():
-                rewrite_artifact_path(metadata_file, run_folder / "artifacts", artifact_path_key="artifact_uri")
+                rewrite_artifact_path(
+                    metadata_file,
+                    run_folder / "artifacts",
+                    artifact_path_key="artifact_uri",
+                )
 
 
 def get_mlflow_run_metas(mlruns_root: Path):
@@ -396,8 +439,12 @@ def get_mlflow_checkpoints(mlruns_root: Path):
     checkpoints = [
         MLFlowCheckpointEntry(
             path=p,
-            metadata=yaml.load((p.parent / "metadata.yaml").read_text(), Loader=yaml.SafeLoader),
-            aliases=yaml.load((p.parent / "aliases.txt").read_text(), Loader=yaml.SafeLoader),
+            metadata=yaml.load(
+                (p.parent / "metadata.yaml").read_text(), Loader=yaml.SafeLoader
+            ),
+            aliases=yaml.load(
+                (p.parent / "aliases.txt").read_text(), Loader=yaml.SafeLoader
+            ),
         )
         for p in mlruns_root.glob("**/*.ckpt")
     ]
