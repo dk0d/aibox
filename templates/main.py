@@ -1,4 +1,5 @@
 # Really basic main file to get you started.
+# not guaranteed to work, but should be a good starting point.
 
 import argparse
 from aibox.slurm.cli import main as slurm_main
