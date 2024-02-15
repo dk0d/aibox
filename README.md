@@ -13,13 +13,34 @@ My AI toolbox of helper functions and other assorted utils
 
 > Refer to TOML spec for help on syntax: [TOML.io](https://toml.io/en/)
 
+# Project Structure
+
+```bash
+├── configs
+│ ├── experiments
+│ │  ├── vae.toml
+│ │  ├── default.toml
+│ │  ├── mnist.toml
+│ ├── models
+│ │  ├── ae/vae.toml
+│ │  ├── pix2pix.toml
+│ │  └── default.toml
+├── src
+│  └── project_package
+├── pyproject.toml
+└── README.md
+```
+
+- configs folder can be anywhere, can override via CLI args
+- can specify multiple configurations and `OmegaConf` merges them
+
 # Examples
 
 Models
 
 ```toml
 [model]
-class_path = "project.models.CNN" # required
+__classpath__ = "project.models.CNN" # required
 in_channels = 3
 
 [[model.optimizers]] # makes an array of objects at the models.args.optimizers path
