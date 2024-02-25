@@ -10,7 +10,6 @@ from rich import print as rprint
 
 from aibox.logger import get_logger
 
-# import numpy as np
 
 T = TypeVar("T")
 
