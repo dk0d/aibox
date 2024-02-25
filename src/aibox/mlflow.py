@@ -30,20 +30,22 @@ class MLFlowHelper:
     ):
         self.tracking_uri = tracking_uri
         self.registry_uri = registry_uri
-        self.client = mlflow.MlflowClient(
-            tracking_uri=tracking_uri, registry_uri=registry_uri
-        )
+        self.client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
 
     def get_run(self, run_id):
+        """Get a run by its run_id"""
         return self.client.get_run(run_id=run_id)
 
     def experiments(self):
+        """Get a list of all experiments in the MLFlow tracking server"""
         return [e for e in self.client.search_experiments() if e.name != "Default"]
 
     def experiment_by_name(self, name):
+        """Get an experiment by its name"""
         return self.client.get_experiment_by_name(name)
 
     def experiment_by_id(self, id):
+        """Get an experiment by its id"""
         return self.client.get_experiment(id)
 
     def get_runs(
@@ -55,6 +57,7 @@ class MLFlowHelper:
         order_by: list[str] | None = None,
         page_token: str | None = None,  # get from paged list
     ) -> PagedList[Run]:
+        """Get runs in MLFlow"""
         runs = self.search_runs(
             run_name=run_name,
             experiment_ids=experiment_ids,
@@ -184,9 +187,7 @@ class MLFlowHelper:
             Model: L.LightningModule = class_from_string(derive_classpath(model_cfg))
             device = get_device()
             model_kwargs.update(map_location=device)
-            model = Model.load_from_checkpoint(
-                best, **derive_args(model_cfg, **model_kwargs)
-            )
+            model = Model.load_from_checkpoint(best, **derive_args(model_cfg, **model_kwargs))
         else:
             import torch
 
@@ -203,6 +204,21 @@ class MLFlowHelper:
         path_keys: list[str] | None = None,
         verbose=False,
     ):
+        """
+        Load the configuration from the run_id or run object
+
+        Args:
+
+            run (Run | str): run object or `run_id`
+            config_file (str, optional): [description]. Defaults to "config.yml".
+            new_root ([type], optional): If set, renames paths found in config files and artifact paths.
+            Defaults to None.
+            path_keys (list[str], optional)
+            verbose (bool, optional): [description]. Defaults to False.
+
+        Returns:
+            [type]: [description]
+        """
         # try:
         # param_config = config_from_dotlist([f"{k}={v}" for k, v in run.data.params.items()])
         # return param_config
@@ -263,34 +279,17 @@ class MLFlowHelper:
         """
 
         if experiment_ids is None:
-            exp_filter_string = (
-                None
-                if experiment_name is None
-                else f"attribute.name LIKE '%{experiment_name}%'"
-            )
-            experiment_ids = [
-                e.experiment_id
-                for e in self.client.search_experiments(filter_string=exp_filter_string)
-            ]
+            exp_filter_string = None if experiment_name is None else f"attribute.name LIKE '%{experiment_name}%'"
+            experiment_ids = [e.experiment_id for e in self.client.search_experiments(filter_string=exp_filter_string)]
 
-        filters = [
-            (
-                f"attributes.run_name LIKE '%{run_name}%'"
-                if run_name is not None
-                else None
-            )
-        ]
+        filters = [(f"attributes.run_name LIKE '%{run_name}%'" if run_name is not None else None)]
 
         if filter_string is not None:
             filters.append(filter_string)
 
         filters = [f for f in filters if f is not None]
 
-        filter_string = (
-            " AND ".join(f for f in filters if f is not None)
-            if len(filters) > 0
-            else ""
-        )
+        filter_string = " AND ".join(f for f in filters if f is not None) if len(filters) > 0 else ""
 
         order_by = order_by if order_by is not None else ["metrics.`test/loss` DESC"]
 
@@ -314,9 +313,7 @@ class MLFlowHelper:
         run_id: str = run.info.run_id if isinstance(run, Run) else run
         return self.client.list_artifacts(run_id)
 
-    def get_artifact(
-        self, run: Run | str, path: str, dst_path: str | None = None
-    ) -> Path:
+    def get_artifact(self, run: Run | str, path: str, dst_path: str | None = None) -> Path:
         run_id: str = run.info.run_id if isinstance(run, Run) else run
         return as_path(self.client.download_artifacts(run_id, path, dst_path))
 
@@ -393,14 +390,18 @@ def rewrite_artifact_path(metadata_file, pwd, artifact_path_key):
 
 
 def fix_mlflow_artifact_paths(mlflow_root: Path):
+    """
+    Fixes the artifact paths in the metadata files for MLFlow runs and experiments.
+    Rewrites artifact paths to be relative to the mlflow_root directory.
+    Useful when moving MLFlow runs and experiments to a new location.
+
+    """
     for experiment_folder in mlflow_root.expanduser().resolve().iterdir():
         metadata_file = experiment_folder / "meta.yaml"
 
         # Fix experiment metadata
         if metadata_file.exists():
-            rewrite_artifact_path(
-                metadata_file, experiment_folder, artifact_path_key="artifact_location"
-            )
+            rewrite_artifact_path(metadata_file, experiment_folder, artifact_path_key="artifact_location")
         for run_folder in experiment_folder.iterdir():
             metadata_file = run_folder / "meta.yaml"
             LOGGER.info(run_folder)
@@ -415,6 +416,7 @@ def fix_mlflow_artifact_paths(mlflow_root: Path):
 
 
 def get_mlflow_run_metas(mlruns_root: Path):
+    """Collects all of the metadata files for MLFlow runs in the mlruns directory."""
     _configs = [
         run_meta
         for exp_dir in mlruns_root.glob("*")
@@ -439,12 +441,8 @@ def get_mlflow_checkpoints(mlruns_root: Path):
     checkpoints = [
         MLFlowCheckpointEntry(
             path=p,
-            metadata=yaml.load(
-                (p.parent / "metadata.yaml").read_text(), Loader=yaml.SafeLoader
-            ),
-            aliases=yaml.load(
-                (p.parent / "aliases.txt").read_text(), Loader=yaml.SafeLoader
-            ),
+            metadata=yaml.load((p.parent / "metadata.yaml").read_text(), Loader=yaml.SafeLoader),
+            aliases=yaml.load((p.parent / "aliases.txt").read_text(), Loader=yaml.SafeLoader),
         )
         for p in mlruns_root.glob("**/*.ckpt")
     ]
