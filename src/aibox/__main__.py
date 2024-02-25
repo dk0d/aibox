@@ -3,11 +3,6 @@ from pathlib import Path
 
 from aibox.utils import print
 
-try:
-    from aibox.mlflow import fix_mlflow_artifact_paths
-except ImportError:
-    fix_mlflow_artifact_paths = None
-
 
 def run(args, install):
     import subprocess
@@ -37,6 +32,11 @@ def main():
     args = parser.parse_args()
 
     if args.fix_mlflow_path is not None:
+        try:
+            from aibox.mlflow import fix_mlflow_artifact_paths
+        except ImportError:
+            fix_mlflow_artifact_paths = None
+
         if fix_mlflow_artifact_paths is not None:
             fix_mlflow_artifact_paths(Path(args.fix_mlflow_path))
         else:
