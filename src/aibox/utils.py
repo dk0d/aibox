@@ -18,10 +18,12 @@ LOGGER = get_logger(__name__)
 
 
 def is_list(x) -> bool:
+    """Helper to check if x is a list or a ListConfig"""
     return OmegaConf.is_list(x) or isinstance(x, list)
 
 
 def is_dict(x) -> bool:
+    """Helper to check if x is a dict or a DictConfig"""
     return OmegaConf.is_dict(x) or isinstance(x, dict)
 
 
@@ -86,7 +88,7 @@ def get_files(
     check_ext = allowed_exts is not None and len(allowed_exts) > 0
     if check_ext:
         # remove period at beginning if present
-        allowed_exts = [a[1:] if a.startswith(".") else a for a in allowed_exts]
+        allowed_exts = [a[1:] if a.startswith(".") else a for a in allowed_exts]  # type: ignore
 
     if desc is None:
         progress = None
@@ -102,7 +104,7 @@ def get_files(
                     continue
                 p = None
                 if check_ext:
-                    if item.name.split(".")[-1] in allowed_exts:
+                    if item.name.split(".")[-1] in allowed_exts:  # type: ignore
                         p = item.path
                 else:
                     p = item.path
@@ -120,8 +122,12 @@ def get_files(
 
 def nearest_square_grid(num: int) -> tuple[int, int]:
     """
+    Utility function for plotting which calculates the nearest square grid to the given number.
+
     Returns the nearest square number to the given number
     as a tuple of (nrows, ncols)
+
+
 
     assumes num < 50
 
@@ -140,10 +146,12 @@ def nearest_square_grid(num: int) -> tuple[int, int]:
 
 
 def is_list_of(obj: Sequence, T) -> TypeGuard[Sequence]:
+    """Checks if all elements of sequence are of type T"""
     return all(isinstance(el, T) for el in obj)
 
 
-def path_from_uri(path: str | Path) -> bool:
+def path_from_uri(path: str | Path):
+    """Convert a URI to a path. If the path is not a **file** URI (is not prefixed with "file://"), it is returned as is."""
     import re
 
     match = re.search(r"^file://(.+)", str(path))
@@ -155,10 +163,13 @@ def path_from_uri(path: str | Path) -> bool:
 
 
 def as_path(path: str | Path) -> Path:
+    """Ensure path is a Path object. Also expands user tilde and resolves the path."""
     return Path(path).expanduser().resolve()
 
 
 def print(*args, **kwargs):
+    """Pretty print using rich, but makes the print interface like that of the built-in print function"""
+
     def _config_format(arg):
         if isinstance(arg, (DictConfig, ListConfig)):
             arg = OmegaConf.to_container(arg, resolve=True)
@@ -169,6 +180,10 @@ def print(*args, **kwargs):
 
 
 def as_uri(path: str | Path | None) -> str | None:
+    """
+    Convert a path to a URI string
+    """
+
     if path is None:
         return None
 
