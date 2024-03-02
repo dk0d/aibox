@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from aibox.torch.transforms import ToNumpyImage
 from aibox.utils import is_list_of
+from mpl_toolkits.axes_grid1 import ImageGrid
 from PIL import Image as PILImage
 from skimage.util import compare_images
 
@@ -90,6 +91,7 @@ def save_images(
     images: list[torch.Tensor] | torch.Tensor,
     names: list[str],
     save_dir: Path,
+    batch_idx: int | None = None,
     ext: str = "png",
 ):
     """save batch of images
@@ -106,15 +108,41 @@ def save_images(
     save_dir.mkdir(parents=True, exist_ok=True)
     transform = ToPILImage()
     if isinstance(images, (list, tuple)):
-        for i, batch in enumerate(zip(*images, strict=True)):
-            for n, b in zip(names, batch, strict=True):
-                save_path = save_dir / f"{i}" / f"{n}.{ext}"
+        for i, batch_img in enumerate(zip(*images, strict=True)):
+            for n, bImg in zip(names, batch_img, strict=True):
+                save_path = (
+                    save_dir / f"{i}_{n}.{ext}" if batch_idx is None else save_dir / f"b{batch_idx}_{i}_{n}.{ext}"
+                )
                 save_path.parent.mkdir(parents=True, exist_ok=True)
-                imsave(image=transform(b), path=save_path)
+                imsave(image=transform(bImg), path=save_path)
     else:
         for image, name in zip(images, names, strict=True):
-            save_path = save_dir / f"{name}.{ext}"
+            save_path = save_dir / f"{name}.{ext}" if batch_idx is None else save_dir / f"b{batch_idx}_{name}.{ext}"
             imsave(image=transform(image), path=save_path)
+
+
+def make_image_grid(
+    images: list[np.ndarray] | list[PILImage.Image] | list[torch.Tensor] | torch.Tensor,
+    n_columns=1,
+    normalize=False,
+    interlace=False,
+    padding=1,
+) -> PILImage.Image:
+    """Makes a single image grid from a list of images
+
+    Args:
+        images (list[np.ndarray] | list[PILImage.Image] | list[torch.Tensor] | torch.Tensor): _description_
+        n_columns (int, optional): number of columns to have in the grid. Defaults to 1.
+        normalize (bool, optional): whether or not to normalize the image . Defaults to False.
+        interlace (bool, optional): interlaces the images, useful to interlace a list of batched tensors. Defaults to False.
+        padding (int, optional): image padding in the grid. Defaults to 1.
+
+    Returns:
+        PILImage.Image
+    """
+    tensors = _images_to_tensor(images, interlace=interlace)
+    image = ToPILImage()(make_grid(tensors, nrow=n_columns, padding=padding, normalize=normalize))
+    return image
 
 
 def display_images(
@@ -126,9 +154,12 @@ def display_images(
     padding=1,
     save_path: Path | None = None,
 ):
-    tensors = _images_to_tensor(images, interlace=interlace)
-    image = ToPILImage()(
-        make_grid(tensors, nrow=n_columns, padding=padding, normalize=normalize)
+    image = make_image_grid(
+        images=images,
+        n_columns=n_columns,
+        normalize=normalize,
+        interlace=interlace,
+        padding=padding,
     )
     if save_path is None:
         imshow(
@@ -198,14 +229,8 @@ def calc_shape_2d_conv(
     dilation=(1, 1),
     kernel_size=(3, 3),
 ):
-    H_out = np.floor(
-        (H_in + 2 * padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) / (stride[0])
-        + 1
-    )
-    W_out = np.floor(
-        (W_in + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) / (stride[1])
-        + 1
-    )
+    H_out = np.floor((H_in + 2 * padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) / (stride[0]) + 1)
+    W_out = np.floor((W_in + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) / (stride[1]) + 1)
     return H_out, W_out
 
 
@@ -218,20 +243,8 @@ def calc_shape_2d_transpose(
     kernel_size=(3, 3),
     output_padding=(1, 1),
 ):
-    H_out = (
-        (H_in - 1) * stride[0]
-        - 2 * padding[0]
-        + dilation[0] * (kernel_size[0] - 1)
-        + output_padding[0]
-        + 1
-    )
-    W_out = (
-        (W_in - 1) * stride[1]
-        - 2 * padding[1]
-        + dilation[1] * (kernel_size[1] - 1)
-        + output_padding[1]
-        + 1
-    )
+    H_out = (H_in - 1) * stride[0] - 2 * padding[0] + dilation[0] * (kernel_size[0] - 1) + output_padding[0] + 1
+    W_out = (W_in - 1) * stride[1] - 2 * padding[1] + dilation[1] * (kernel_size[1] - 1) + output_padding[1] + 1
     return H_out, W_out
 
 
