@@ -2,6 +2,7 @@
 import torch
 
 from aibox.torch.callbacks import LogImagesCallback
+from aibox.torch.image import interlace_images
 from aibox.torch.logging import CombinedLogger
 
 DEFAULT_CONFIG_DIR = "tests/resources/configs"
@@ -15,7 +16,7 @@ def test_log_images_callback_interlace():
     nImages = 7  # cols (number of images to interlace)
     maxImages = 3  # rows (max images per batch to show)
     images = [torch.ones((10, 3, 32, 32)) * i for i in range(1, nImages + 1)]
-    image = LogImagesCallback._interlace_images(images, maxImages=maxImages)
+    image = interlace_images(images, maxImages=maxImages)
     assert image.shape == (nImages * maxImages, 3, 32, 32), f"Expected shape (3*4, 3, 32, 32), got {image.shape}"
     assert (
         image[1].shape == images[1][0].shape
