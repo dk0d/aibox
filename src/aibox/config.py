@@ -21,7 +21,7 @@ OmegaConf.register_new_resolver("decrement", lambda x: x - 1)
 OmegaConf.register_new_resolver("add", lambda *nums: sum(nums))
 OmegaConf.register_new_resolver("basename", basename)
 
-Config: TypeAlias = DictConfig | dict
+Config: TypeAlias = DictConfig
 
 SUPPORTED_INIT_TARGET_KEYS = [
     "__classpath__",
@@ -68,9 +68,7 @@ def derive_classpath_deprecated(config: Config) -> str:
     elif "target" in conf:
         class_string = conf["target"]
     else:
-        raise KeyError(
-            "Expected one of `class_path` or `target` as module path to instantiate object"
-        )
+        raise KeyError("Expected one of `class_path` or `target` as module path to instantiate object")
     return class_string
 
 
@@ -86,15 +84,12 @@ def derive_classpath(config: Config) -> str:
             resolved.append((skey, value))
         elif value is not None:
             raise ValueError(
-                f"Multiple init targets specified in config: {skey} and {resolved[-1][0]}"
-                f"are both present in {conf}"
+                f"Multiple init targets specified in config: {skey} and {resolved[-1][0]}" f"are both present in {conf}"
             )
     class_string = resolved[-1][1] if len(resolved) > 0 else None
 
     if class_string is None:
-        raise KeyError(
-            f"None of the supported init target keys found in config keys: {list(config.keys())}"
-        )
+        raise KeyError(f"None of the supported init target keys found in config keys: {list(config.keys())}")
 
     return class_string
 
@@ -360,9 +355,7 @@ def yaml_to_toml(source_dir: Path, out_dir: Path, name_fn=None):
         print("yaml, tomlkit required")
         return
 
-    yamlConfigs = [
-        (p, yaml.load(p.open("r"), yaml.Loader)) for p in source_dir.rglob("**/*.yaml")
-    ]
+    yamlConfigs = [(p, yaml.load(p.open("r"), yaml.Loader)) for p in source_dir.rglob("**/*.yaml")]
     pprint(f"Found {len(yamlConfigs)} YAML Files")
     _configs_to_toml(yamlConfigs, source_dir, out_dir, name_fn)
 
@@ -435,20 +428,14 @@ def _resolve_paths(
 
     for full_key, v in config_to_dotlist(config).items():
         k = full_key.split(".")[-1]
-        if (
-            full_key in path_keys
-            or "root" in k
-            or "dir" in k
-            or "path" in k
-            or "file" in k
-        ) and (isinstance(v, Path | str)):
+        if (full_key in path_keys or "root" in k or "dir" in k or "path" in k or "file" in k) and (
+            isinstance(v, Path | str)
+        ):
             try:
                 p = as_path(v)
                 if p is not None and p.is_relative_to(old_root):
                     if verbose:
-                        LOGGER.info(
-                            f"Replacing key {k}\n{p}\nwith\n{new_root / p.relative_to(old_root)}"
-                        )
+                        LOGGER.info(f"Replacing key {k}\n{p}\nwith\n{new_root / p.relative_to(old_root)}")
                     config_update(config, full_key, new_root / p.relative_to(old_root))
                     # config[k] = new_root / p.relative_to(old_root)
             except Exception as e:

@@ -1,11 +1,11 @@
 import argparse
 from pathlib import Path
+from typing import Type, TypeAlias
 
 import lightning as L
 import polars as pl
 import pyarrow.parquet as pq
 import torch
-from ffcv.loader import Loader
 from lightning.fabric.utilities.exceptions import MisconfigurationException
 from torch.utils.data import DataLoader
 
@@ -15,11 +15,19 @@ from aibox.logger import get_logger
 from aibox.mlflow import MLFlowHelper
 from aibox.progress import track
 from aibox.torch.logging import CombinedLogger
-from aibox.utils import as_path
+from aibox.utils import as_path, print
 
-LOGGER = get_logger(__name__)
+try:
+    from ffcv.loader import Loader
+except ImportError:
+    print("[orange] WARNING: FFCV not available")
+    # FIXME: not sure about this
+    Loader = DataLoader
+
 
 EvalLoader = Loader | DataLoader
+
+LOGGER = get_logger(__name__)
 
 
 class Evaluator:

@@ -42,13 +42,14 @@ def test_nearest_square_root(N, expected):
 
 
 def test_mlflow_log_dir():
-    from mlflow.tracking.artifact_utils import shutil
+    import shutil
 
     from aibox.torch.logging import CombinedLogger
 
     log_dir = Path("./logs").resolve()
     logger = CombinedLogger("./logs")
-    assert log_dir.exists()
+    assert logger is not None, "Logger failed to init"
+    assert log_dir.exists(), "log dir doesn't exist"
 
     shutil.rmtree(log_dir)
-    assert not log_dir.exists()
+    assert not log_dir.exists(), "log dir still exists"
