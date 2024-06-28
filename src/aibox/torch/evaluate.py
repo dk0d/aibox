@@ -1,6 +1,6 @@
 import argparse
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Type, TypeAlias
 
 import lightning as L
 import polars as pl
@@ -9,23 +9,23 @@ import torch
 from lightning.fabric.utilities.exceptions import MisconfigurationException
 from torch.utils.data import DataLoader
 
-import aibox
 from aibox.config import Config, init_from_cfg
 from aibox.logger import get_logger
 from aibox.mlflow import MLFlowHelper
 from aibox.progress import track
 from aibox.torch.logging import CombinedLogger
-from aibox.utils import as_path, print
+from aibox.utils import as_path
+from aibox.torch.utils import get_device
+from aibox.torch.lightning import DataModuleFromConfig
 
 try:
-    from ffcv.loader import Loader
+    from ffcv.loader import Loader  # pyright: ignore[reportMissingImports]
+
 except ImportError:
-    print("[orange] WARNING: FFCV not available")
-    # FIXME: not sure about this
-    Loader = DataLoader
+    # print("[orange] WARNING: FFCV not available")
+    pass
 
-
-EvalLoader = Loader | DataLoader
+EvalLoader = Sequence
 
 LOGGER = get_logger(__name__)
 
@@ -35,6 +35,7 @@ class Evaluator:
         self,
         model: torch.nn.Module,
         loaders: list[EvalLoader] | EvalLoader,
+        device=None,
     ):
         """Evaluator for a model
 
@@ -49,6 +50,7 @@ class Evaluator:
         if not isinstance(loaders, list):
             loaders = [loaders]
         self.loaders = loaders
+        self.device = get_device() if device is None else device
 
     def __len__(self):
         return sum([len(loader) for loader in self.loaders])
@@ -78,7 +80,7 @@ class Evaluator:
 
         return self._sized_loaders_meta[loader_idx]
 
-    def evaluate(self, batch, loader_idx, device=None) -> pl.DataFrame:
+    def evaluate(self, batch, loader_idx, device=None) -> pl.DataFrame:  # pyright: ignore[reportUnusedVariable]
         """Evaluate a batch and return a polars.DataFrame with the results
 
         Args:
@@ -92,13 +94,12 @@ class Evaluator:
         raise NotImplementedError
 
     def __iter__(self):
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.eval()
-        self.model.to(device)
+        self.model.to(self.device)
         with torch.no_grad():
             for i, loader in enumerate(self.loaders):
                 for batch in loader:
-                    yield self.evaluate(batch, i, device=device)
+                    yield self.evaluate(batch, i, device=self.device)
 
 
 class ParquetWriter:
@@ -289,7 +290,7 @@ def main_cli(args=None):
     dm = init_from_cfg(config.data)
 
     LOGGER.info(f"Loaded DataModule: {dm.__class__.__name__}")
-    if isinstance(dm, aibox.torch.lightning.DataModuleFromConfig):
+    if isinstance(dm, DataModuleFromConfig):
         for split, conf in dm.dataset_configs.items():
             LOGGER.info(f"{split}: {conf['__classpath__']}")
 
