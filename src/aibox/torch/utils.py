@@ -15,9 +15,9 @@ def get_num_workers(zero_if_mps=True):
 
 
 def get_device():
-    if torch.backends.cuda.is_built():
+    if torch.backends.cuda.is_built() and torch.cuda.is_available():
         return "cuda"
-    if torch.backends.mps.is_built():
+    if torch.backends.mps.is_built() and torch.backends.mps.is_available():
         return torch.device("mps")
 
     return torch.device("cpu")
