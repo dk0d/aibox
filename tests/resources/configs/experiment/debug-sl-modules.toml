@@ -3,7 +3,7 @@ debug = true
 name = 'debug-experiment'
 
 [model]
-__classpath__ = 'path.to.Class'
+_classpath_ = 'path.to.Class'
 condition_classes = 1
 
 [data.args]
@@ -26,3 +26,4 @@ env_name = 'debug'
 env_dir = '${as_path:"~/.conda/envs"}'
 python_file = 'debug.py'
 script_dir = '${oc.env:PWD}/slurm_scripts'
+modules = ['gcc/9.3']                      # extra modules to load on hpg

@@ -1,0 +1,3 @@
+
+_target_ = "this.is.a.flat.config.file"
+name = "flattened"

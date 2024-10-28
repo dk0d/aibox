@@ -1,15 +1,13 @@
 [model]
-class_path = 'ae.models.DFCVAE'
+_target_ = 'ae.models.DFCVAE'
 
-[model.args]
+[model._args_]
 name = 'default'
 hidden_dims = [32, 64, 128, 256, 512]
 latent_dim = 128
 
 [loss]
-class_path = 'pyicu.refics.ae.losses.DFCVAELoss'
-
-[loss.args]
+_target_ = 'pyicu.refics.ae.losses.DFCVAELoss'
 alpha = 1.0
 beta = 0.5
 

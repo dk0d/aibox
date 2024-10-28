@@ -4,11 +4,19 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from collections.abc import Callable
+
 from omegaconf import DictConfig, OmegaConf
 
-from aibox.config import config_from_path
+from aibox.config import config_from_path, config_get, config_merge, config_update
+
 from aibox.logger import get_logger
 from aibox.utils import chunk
+
+# import hydra
+from aibox.utils import as_path, as_uri, basename
+
+import functools
 
 LOGGER = get_logger(__name__)
 
@@ -40,63 +48,52 @@ class PathAction(Action):
         setattr(namespace, self.dest, ExpandedPathType(values))
 
 
+def _resolve_config_path(root: Path | str, name: str):
+    for ext in [".toml", ".yaml", ".yml"]:
+        path = (Path(root) / name).with_suffix(ext)
+        if path.exists():
+            return path
+    raise FileNotFoundError(f"Could not find YAML or TOML {name} in {root}")
+
+
 class AIBoxCLI:
-    def __init__(self) -> None:
+    def __init__(self, root_config: str, setup_default_args=False) -> None:
+        """
+        Arguments:
+            root_config: relative path to the root configuration to load
+            setup_default_args: create default args for the parser
+                --configs_dir
+                --logs_dir
+                --debug
+                --dry_run
+        """
         self.parser = ArgumentParser()
-        self.setup_default_args()
+        if setup_default_args:
+            self.setup_default_args()
+        self.root_config = root_config
         self.linked = []
         self.config_dirs = []
 
     def setup_default_args(self):
         self.parser.add_argument(
-            "-e",  # expe
-            "-n",
-            "--name",
-            dest="name",
-            type=str,
-            help="Name of the experiment, overall name of the configuration",
-        )
-        self.parser.add_argument(
-            "-m",
-            "--model_name",
-            type=str,
-            help="Name of the model, used to load model config",
-        )
-        self.parser.add_argument(
-            "-c",
-            "--config",
-            action=PathAction,
-            default=None,
-            help="Path to any config file to override experiment config",
-        )
-        self.parser.add_argument(
             "-cd",
-            "--config_dir",
+            "--configs_dir",
             action=PathAction,
             default=cwd("configs"),
         )
         self.parser.add_argument(
             "-l",
-            "--log_dir",
+            "--logs_dir",
             action=PathAction,
             default=cwd("logs"),
         )
         self.parser.add_argument(
-            "-ed",
-            "--exp_dir",
-            action=PathAction,
-            default=None,
-            # default=cwd("configs/experiments"),
-        )
-        self.parser.add_argument(
-            "-md",
-            "--models_dir",
-            action=PathAction,
-            # default=cwd("configs/models"),
-            default=None,
-        )
-        self.parser.add_argument(
             "--debug",
+            action="store_true",
+            default=False,
+        )
+        self.parser.add_argument(
+            "--dry_run",
             action="store_true",
             default=False,
         )
@@ -150,16 +147,9 @@ class AIBoxCLI:
             OmegaConf.update(conf, k, None, force_add=True)
         return conf
 
-    def _resolve_config_path(self, root: Path | str, name: str):
-        for ext in [".toml", ".yaml", ".yml"]:
-            path = (Path(root) / name).with_suffix(ext)
-            if path.exists():
-                return path
-        raise FileNotFoundError(f"Could not find YAML or TOML {name} in {root}")
-
     def _load_config(self, root: Path | str, name: str, custom_msg=None, verbose=False):
         try:
-            path = self._resolve_config_path(root, name)
+            path = _resolve_config_path(root, name)
             config = config_from_path(path)
             return path, config
         except Exception as e:
@@ -183,15 +173,6 @@ class AIBoxCLI:
     def _parse_cli_args(self, args=None):
         args, unk = self.parser.parse_known_args(args)
 
-        try:
-            if args.exp_dir is None:
-                args.exp_dir = args.config_dir / "experiments"
-
-            if args.models_dir is None:
-                args.models_dir = args.config_dir / "models"
-        except Exception:
-            pass
-
         cli_config = self._args_to_config(args)
 
         if len(unk) > 0:
@@ -212,7 +193,7 @@ class AIBoxCLI:
         # Load defaults, if present
         defaults_root = config_path.parent if config_path is not None else root
         _, defaults = self._load_config(
-            root=defaults_root, name="default", custom_msg=f"{name} defaults", verbose=False
+            root=defaults_root, name="defaults", custom_msg=f"{name} defaults", verbose=False
         )
 
         # Merge defaults and config
@@ -223,63 +204,110 @@ class AIBoxCLI:
     def parse_args(self, args=None) -> DictConfig:
         cli_config = self._parse_cli_args(args)
 
-        # model_path, model_config = Path(cli_config.models_dir) / f"{cli_config.model_name}.toml", None
-        # model_defaults_path, model_defaults_config = model_path.parent / "default.toml", None
-        # exp_path, exp_config = Path(cli_config.exp_dir) / f"{cli_config.name}.toml", None
-        # exp_defaults_path, exp_defaults_config = exp_path.parent / "default.toml", None
-
         # Load global default config
         _, global_defaults = self._load_config(
             root=cli_config.config_dir,
-            name="default",
-            custom_msg="global defaults",
+            name=self.root_config,
+            custom_msg="root configuration",
             verbose=True,
         )
 
-        # Load Model Config
-        _, model_config = self.resolve_config_from_root_name(
-            root=cli_config.models_dir,
-            name=cli_config.model_name,
-            verbose=cli_config.model_name is not None,
-        )
-
-        # Load Experiment Config
-        _, exp_config = self.resolve_config_from_root_name(
-            root=cli_config.exp_dir,
-            name=cli_config.name,
-            verbose=cli_config.name is not None,
-        )
-
         # Load overriding config if given
-        _config = OmegaConf.from_dotlist([])
-        if cli_config.config is not None:
+        _config = [OmegaConf.from_dotlist([])]
+        if config_get(cli_config, "config", None) is not None:
             try:
-                _config = config_from_path(cli_config.config)
+                _config = [config_from_path(_resolve_config_path(cli_config.config_dir, c)) for c in cli_config.config]
             except Exception as e:
                 LOGGER.error(f"[bold red]Error loading config {cli_config.config}")
                 LOGGER.exception(e)
 
+            # remove the passed configs from the config to clean things up
+            del cli_config.config
+
         config = OmegaConf.merge(
             global_defaults,
-            exp_config,
-            model_config,
-            _config,
+            *_config,
             cli_config,
         )
         return self._resolve_links(config)
 
 
-def cli_main(args=None):
-    cli = AIBoxCLI()
+# def cli_main(args=None):
+#     cli = AIBoxCLI()
+#     # First key (source) takes priority
+#     # cli.add_linked_properties("model.args.image_size", "data.args.image_size", default=64)
+#     # cli.add_linked_properties("model.args.image_channels", "data.args.image_channels", default=1)
+#     config = cli.parse_args(args=args)
+#     return config
 
-    # First key (source) takes priority
-    # cli.add_linked_properties("model.args.image_size", "data.args.image_size", default=64)
-    # cli.add_linked_properties("model.args.image_channels", "data.args.image_channels", default=1)
-
-    config = cli.parse_args(args=args)
-
-    return config
+MainFn = Callable[[Any], Any]
 
 
-if __name__ == "__main__":
-    cli_main()
+def process_cfg(configs_dir: Path, config):
+    config_root_keys = [p.name for p in configs_dir.glob("*") if p.is_dir()]
+    cfg = config
+    for key in config_root_keys:
+        if hasattr(cfg, key) and isinstance(
+            config_get(cfg, key, None), str
+        ):  # interpret value as path to another config
+            other_cfg = config_from_path(_resolve_config_path(configs_dir / key, config_get(cfg, key)))
+            if hasattr(other_cfg, key):  # if same key exists, merge
+                cfg: DictConfig = config_merge(cfg, other_cfg)
+                # pass
+            else:  # assume its a flattened config that only contains the key config
+                config_update(cfg, key, other_cfg)
+        else:  # can be a dict or object leave as is
+            pass
+    return cfg
+
+
+def main(
+    configs_dir: str | Path = "./configs",
+    root_config: str = "defaults",
+) -> Callable[[MainFn], Any]:
+    """
+    configs_dir: path to config root
+    entry_config: the default root config - if not provided, looks for a `defaults.{toml,yaml}` file in the root config directory
+    """
+    configs_dir = as_path(configs_dir) if configs_dir is not None else as_path("./configs")
+
+    def main_wrapper(fn: MainFn) -> Callable[[], None]:
+        @functools.wraps(fn)
+        def wrapped_main(config: DictConfig | None = None) -> Any:
+            def resolve_cfg(path: str, key=None):
+                """
+                if key is not None - will return the provided key from the referenced config
+                this is defined here to capture the value of the `configs_dir`
+                """
+                fpath = _resolve_config_path(configs_dir, path)
+                _conf = config_from_path(fpath)
+                if key is None:
+                    return _conf
+                config_get(_conf, key, None)
+
+            OmegaConf.register_new_resolver("cfg", resolve_cfg)
+            OmegaConf.register_new_resolver("as_path", as_path)
+            OmegaConf.register_new_resolver("as_uri", as_uri)
+            OmegaConf.register_new_resolver("add", lambda *nums: sum(nums))
+            OmegaConf.register_new_resolver("basename", basename)
+
+            if isinstance(config, DictConfig):
+                # if a config is already given, just forward it to the function
+                return fn(config)
+            else:
+                # if no cfg is given, assume need to parse CLI args
+                parser = AIBoxCLI(root_config=root_config)
+                parser.add_argument("-cd", "--config_dir", action=PathAction, default=as_path(configs_dir))
+                parser.add_argument("-c", "--config", default=None, nargs="+")
+
+                config = parser.parse_args(config)
+                config = process_cfg(configs_dir, config)
+                return fn(config)
+
+        return wrapped_main
+
+    return main_wrapper
+
+
+# if __name__ == "__main__":
+#     cli_main()

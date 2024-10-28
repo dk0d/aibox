@@ -5,31 +5,23 @@ from typing import TypeAlias
 from omegaconf import DictConfig, OmegaConf
 
 from aibox.logger import get_logger
-from aibox.utils import as_path, as_uri
+from aibox.utils import as_path
 
-
-def basename(path: str) -> str:
-    import re
-
-    return re.split(r"[\./]", path)[-1]
-
-
-OmegaConf.register_new_resolver("as_path", as_path)
-OmegaConf.register_new_resolver("as_uri", as_uri)
-OmegaConf.register_new_resolver("increment", lambda x: x + 1)
-OmegaConf.register_new_resolver("decrement", lambda x: x - 1)
-OmegaConf.register_new_resolver("add", lambda *nums: sum(nums))
-OmegaConf.register_new_resolver("basename", basename)
 
 Config: TypeAlias = DictConfig
 
 SUPPORTED_INIT_TARGET_KEYS = [
+    "_target_",
+    "__target__",
+    "_classpath_",
+    "_class_path_",
     "__classpath__",
     "__class_path__",
-    "__target__",
     "__init_target__",
 ]
 SUPPORTED_INIT_ARGS_KEYS = [
+    "_args_",
+    "_kwargs_",
     "__args__",
     "__kwargs__",
     "__init_args__",
@@ -229,8 +221,8 @@ def config_from_toml(path: Path | str) -> Config:
     return cfg
 
 
-def config_merge(*args, **kwargs):
-    return OmegaConf.merge(*args, **kwargs)
+def config_merge(*args, **kwargs) -> DictConfig:
+    return OmegaConf.merge(*args, **kwargs)  # pyright: ignore
 
 
 def config_from_path(path: Path | str) -> Config:

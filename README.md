@@ -40,12 +40,12 @@ Models
 
 ```toml
 [model]
-__classpath__ = "project.models.CNN" # required
+_target_ = "project.models.CNN" # required
 in_channels = 3
 
 [[model.optimizers]] # makes an array of objects at the models.args.optimizers path
-__classpath__ = 'torch.optim.Adam'
-args.lr = 1e-3
+_target_ = 'torch.optim.Adam'
+lr = 1e-3
 
 
 ```
@@ -55,7 +55,7 @@ Experiment
 ```toml
 
 [data]
-__classpath__ = "torch"
+_target_ = "torch"
 
 [data.args]
 # ...

@@ -1,26 +1,53 @@
 from functools import reduce
 import pytest
 
-from aibox.cli import CLIException, cli_main
+from rich import print
+from aibox.cli import CLIException
+import aibox.cli
 
 DEFAULT_CONFIG_DIR = "tests/resources/configs"
 
 
+@aibox.cli.main(configs_dir="tests/resources/configs")
+def cli_main(config):
+    print(config)
+    return config
+
+
 def test_cli_no_args():
-    cli_main(args=[])
+    cli_main(config=[])
 
 
 def test_cli_args():
-    config = cli_main(["-e", "debug", "--model.args.name", "TESTMODEL", "-cd", DEFAULT_CONFIG_DIR])
+    config = cli_main(["-c", "model/test/test"])
     assert hasattr(config, "model")
-    assert config.model.args.name == "TESTMODEL"
+    assert config.model.args.name == "non-default"
+
+
+def test_cli_multi_config():
+    config = cli_main(["-c", "model/test/test", "model/vae"])
+    assert hasattr(config, "model")
+
+
+def test_cli_ref_cfg():
+    config = cli_main(["-c", "experiment/refed"])
+    assert hasattr(config, "model")
+    assert config.model._target_ == "this.is.a.flat.config.file"
+
+
+def test_cli_args_non_default_dir():
+    try:
+        _ = cli_main(["-cd", "../tests"])
+        assert False, "this directory should not be found"
+    except Exception:
+        pass
 
 
 def test_cli_folder_model():
-    config = cli_main(["-e", "debug", "-m", "test", "-cd", DEFAULT_CONFIG_DIR])
-    assert config.model.class_path == "ae.models.DFCVAE"
-    assert config.model.args.name == "non-default"
-    assert config.trainer.accelerator == "ddp"
+    config = cli_main(["--model='vae'"])
+    assert config.model._target_ == "ae.models.DFCVAE"
+    assert config.model.name == "DFCVAE"
+    assert config.trainer.accelerator == "ddp"  # defaults were loaded
 
 
 def test_cli_args_dotlist():

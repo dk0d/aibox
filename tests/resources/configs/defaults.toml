@@ -1,5 +1,6 @@
 [model]
-__classpath__ = "path.to.Class"
+_target_ = "path.to.Class"
+name = "global_default"
 image_size = 128
 
 [trainer]

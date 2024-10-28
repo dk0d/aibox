@@ -1,5 +1,6 @@
 [model]
-class_path = 'ae.models.DFCVAE'
+_target_ = 'ae.models.DFCVAE'
+name = "DFCVAE"
 
 [model.args]
 hidden_dims = [32, 64, 128, 256, 512]
