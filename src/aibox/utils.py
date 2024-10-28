@@ -178,6 +178,16 @@ def print(*args, **kwargs):
     rprint(*args, **kwargs)
 
 
+def basename(path: str) -> str:
+    """
+    Used as resolver for omegaconf
+    """
+    # import re
+
+    return Path(path).name
+    # return re.split(r"[\./]", path)[-1]
+
+
 def as_uri(path: str | Path | None) -> str | None:
     """
     Convert a path to a URI string
