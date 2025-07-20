@@ -3,6 +3,8 @@ from argparse import Action, ArgumentParser, Namespace
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
+import typer
+
 
 from collections.abc import Callable
 

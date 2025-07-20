@@ -84,9 +84,9 @@ def test_config_parse(name, config):
         assert callback.a == 2
     assert config_copy == config
     if "other" in config:
-        assert (
-            config["other"]["something_that_should_not_be_touched"] == 10000
-        ), f"Other keys should not be touched: {name}"
+        assert config["other"]["something_that_should_not_be_touched"] == 10000, (
+            f"Other keys should not be touched: {name}"
+        )
 
 
 @pytest.mark.parametrize("name,config", make_config_variations())
@@ -103,14 +103,14 @@ def test_config_dict(name, config):
         if "nested_dicts" in config["other"]:
             assert isinstance(config["other"]["nested_dicts"], ConfigDict)
             assert not isinstance(config["other"]["nested_dicts"].to_dict(), ConfigDict)
-        assert (
-            config["other"]["something_that_should_not_be_touched"] == 10000
-        ), f"Other keys should not be touched: {name}"
+        assert config["other"]["something_that_should_not_be_touched"] == 10000, (
+            f"Other keys should not be touched: {name}"
+        )
 
 
 def test_config_conversion():
     config_dict = ConfigDict()
-    config_dict.__classpath__ = "aibox.config.ConfigDict"
+    config_dict._target_ = "aibox.config.ConfigDict"
     config_dict.a = 2
     config = config_from_dict(config_dict)
     assert isinstance(config, DictConfig), f"Expected DictConfig, got {type(config)}"

@@ -12,10 +12,10 @@ dependencies = [
   "omegaconf>=2.3.0",
   "ipython>=8.11.0",
   "matplotlib>=3.8.2",
-  "torchinstaller>=0.8.1",
+  "torchinstaller>=0.9.1",
   "rich>=13.3.4",
   "tensorboard>=2.12.2",
-  "mlflow>=2.14.0",
+  "mlflow>=3.1.1",
   # "numpy>=1.23.2,<1.24.0", # old error with torch
   # "numpy>=1.26.0",
   "numpy",
@@ -23,6 +23,7 @@ dependencies = [
   "lightning[pytorch-extra]>=2.0.8",
   "polars",
   "scikit-image",
+  "typer>=0.16.0",
   # "ffcv>=1.0.2",
 ]
 dynamic = ["version"]
@@ -44,7 +45,6 @@ docs = [
 ]
 torch = ["torch>=2.0.1", "torchvision", "torchaudio", "lightning>=2.0.8"]
 
-
 # Doesn't seem to like installing on apple silicon or through pip 
 ffcv = ["ffcv>=1.0.2"]
 
@@ -61,7 +61,7 @@ source = 'regex_commit'
 path = "src/aibox/___about___.py"
 tag = true
 tag_sign = false
-commit_message = "chore: release v{new_version}"
+commit_message = "chore: ⚡️ release v{new_version}"
 
 [tool.pytest.ini_options]
 # Only show warnings from aibox

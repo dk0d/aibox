@@ -49,7 +49,7 @@ def default_tune_func(tune_config, config):
         config,
         "trainer.callbacks.ray_train_checkpoint_report",
         dict(
-            __classpath__="aibox.torch.training.RayTuneReportCheckpointCallback",
+            _target_="aibox.torch.training.RayTuneReportCheckpointCallback",
             # metrics={"loss": config.tuner.metric},
             on="validation_end",
             save_checkpoints=True,
@@ -64,7 +64,7 @@ def default_tune_func(tune_config, config):
     #     config,
     #     "trainer.callbacks.ray_train_report",
     #     dict(
-    #         __classpath__="aibox.torch.training.RayTrainReportCallback",
+    #         _target_="aibox.torch.training.RayTrainReportCallback",
     #     ),
     # )
 

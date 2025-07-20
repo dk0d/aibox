@@ -4,6 +4,9 @@ from pathlib import Path
 from pprint import pformat
 from typing import TypeGuard, TypeVar
 
+from returns.result import safe, Failure, Success
+
+
 import tqdm
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from rich import print as rprint
@@ -14,6 +17,9 @@ from aibox.logger import get_logger
 T = TypeVar("T")
 
 LOGGER = get_logger(__name__)
+
+Ok = Success
+Err = Failure
 
 
 def is_list(x) -> bool:

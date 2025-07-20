@@ -5,7 +5,7 @@ import argparse
 from aibox.slurm.cli import main as slurm_main
 from aibox.torch.training import main as train_main
 from aibox.torch.evaluate import main_cli as eval_main
-from aibox.utils import as_path
+
 
 try:
     from aibox.torch.tuning import main as tune_main
@@ -40,7 +40,7 @@ def submit(args):
         f"--slurm.python_file={file_path.as_posix()}",
         f"--slurm.env_name={env_name}",
         f"--slurm.env_dir={env_dir}",
-        f'--slurm.script_dir={(Path.cwd() / "slurm-scripts").as_posix()}',
+        f"--slurm.script_dir={(Path.cwd() / 'slurm-scripts').as_posix()}",
     ]
     if "tune" in args:
         args += ["--slurm.nodes=4"]

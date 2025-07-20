@@ -176,7 +176,7 @@ class ParquetWriter:
 def _eval_model(
     config: Config,
     model: torch.nn.Module | L.LightningModule,
-    loaders: list[tuple[Loader | DataLoader, dict]],
+    loaders: list[tuple[EvalLoader, dict]],
     split,
     logger: CombinedLogger,
 ):
@@ -292,7 +292,7 @@ def main_cli(args=None):
     LOGGER.info(f"Loaded DataModule: {dm.__class__.__name__}")
     if isinstance(dm, DataModuleFromConfig):
         for split, conf in dm.dataset_configs.items():
-            LOGGER.info(f"{split}: {conf['__classpath__']}")
+            LOGGER.info(f"{split}: {conf['_target_']}")
 
     # Get logger pointing to the run
     logger = CombinedLogger(

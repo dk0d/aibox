@@ -76,7 +76,7 @@ def derive_classpath(config: Config) -> str:
             resolved.append((skey, value))
         elif value is not None:
             raise ValueError(
-                f"Multiple init targets specified in config: {skey} and {resolved[-1][0]}" f"are both present in {conf}"
+                f"Multiple init targets specified in config: {skey} and {resolved[-1][0]}are both present in {conf}"
             )
     class_string = resolved[-1][1] if len(resolved) > 0 else None
 
@@ -232,7 +232,7 @@ def config_from_path(path: Path | str) -> Config:
     import yaml
 
     with path.open("r") as fp:
-        config = yaml.load(fp, Loader=yaml.Loader)
+        config: dict = yaml.load(fp, Loader=yaml.Loader)
 
     return OmegaConf.create(config)
 
@@ -247,14 +247,14 @@ def flatten_dict(_dict: dict | list, keys_only=False, delimiter=".") -> dict | l
 
     for k, v in entries:
         if isinstance(v, (dict, list)):
-            _d: dict = flatten_dict(v)
+            _d: dict = flatten_dict(v)  # pyright: ignore
             for _k, _v in _d.items():
                 _new_dict[f"{k}{delimiter}{_k}"] = _v
         else:
             _new_dict[k] = v
 
     if keys_only:
-        ks = list(_new_dict.keys())
+        ks = [str(k) for k in _new_dict.keys()]
         ks.sort()
         return ks
 
