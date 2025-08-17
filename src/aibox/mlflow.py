@@ -382,11 +382,17 @@ class MLFlowCheckpointEntry:
 def rewrite_artifact_path(metadata_file, pwd, artifact_path_key):
     with open(metadata_file) as f:
         y = yaml.safe_load(f)
-        y[artifact_path_key] = f"file://{pwd}"
+        curr = y[artifact_path_key]
+        new = f"file://{pwd}"
+        if curr == new:
+            LOGGER.info(f"Skipping: {metadata_file}")
+            return
+        y[artifact_path_key] = new
 
     with open(metadata_file, "w") as f:
-        LOGGER.info(yaml.dump(y, default_flow_style=False, sort_keys=False))
+        # LOGGER.info(yaml.dump(y, default_flow_style=False, sort_keys=False))
         yaml.dump(y, f, default_flow_style=False, sort_keys=False)
+        LOGGER.info(f"UPDATED {curr} -> {new}")
 
 
 def fix_mlflow_artifact_paths(mlflow_root: Path):
@@ -404,7 +410,7 @@ def fix_mlflow_artifact_paths(mlflow_root: Path):
             rewrite_artifact_path(metadata_file, experiment_folder, artifact_path_key="artifact_location")
         for run_folder in experiment_folder.iterdir():
             metadata_file = run_folder / "meta.yaml"
-            LOGGER.info(run_folder)
+            # LOGGER.info(f"RUN FOLDER: {run_folder}")
 
             # Fix run metadata
             if metadata_file.exists():
