@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from pathlib import Path
+import functools
 
 import lightning as L
+from mlflow import artifacts
 import yaml
 
 import mlflow
@@ -419,6 +421,40 @@ def fix_mlflow_artifact_paths(mlflow_root: Path):
                     run_folder / "artifacts",
                     artifact_path_key="artifact_uri",
                 )
+
+
+def fix_mlflow_artifact_uri_sqlite(mlflow_root: Path, db_path: str | Path):
+    from sqlalchemy import create_engine, text
+
+    db_path = as_path(db_path)
+
+    if not db_path.exists():
+        raise FileNotFoundError("SQLite DB not found")
+
+    LOGGER.info(f"Found DB {db_path.name}")
+
+    engine = create_engine(f"sqlite:///{db_path}")
+    with engine.connect() as connection:
+        LOGGER.info(f"Connected to {db_path.name}")
+        runs = connection.execute(text("select run_uuid, name, artifact_uri from runs;"))
+        LOGGER.info(f"Found {runs.rowcount} runs")
+        for run in runs:
+            data = run._asdict()
+            uri = list(as_path(data["artifact_uri"]).parts)
+            idx = uri.index("mlruns")
+            new = as_path(mlflow_root).joinpath(*uri[idx + 1 :])
+            res = connection.execute(
+                text("update runs set artifact_uri = :artifact_uri where run_uuid = :run_uuid;").bindparams(
+                    run_uuid=f"{data['run_uuid']}", artifact_uri=f"{new}"
+                ),
+            )
+            if res.rowcount > 0:
+                LOGGER.info(f"Updated run {data['name']} ({data['run_uuid']}) to {new}")
+            else:
+                LOGGER.error(f"Unable to update run {data['name']}")
+        connection.commit()
+
+    LOGGER.info("Done")
 
 
 def get_mlflow_run_metas(mlruns_root: Path):
