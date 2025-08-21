@@ -21,7 +21,7 @@ dependencies = [
   # "numpy>=1.26.0",
   "numpy",
   "einops>=0.6.1",
-  "lightning[pytorch-extra]>=2.0.8",
+  "lightning[pytorch-extra]>=2.5.0",
   "polars",
   "scikit-image",
   "typer>=0.16.0",
