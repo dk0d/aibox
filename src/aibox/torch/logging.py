@@ -1,15 +1,39 @@
 from argparse import Namespace
-from typing import Any
+import logging
+import os
+from pathlib import Path
+from typing import Any, Literal, Mapping
+import uuid
 
 from omegaconf import DictConfig, OmegaConf
 
-from aibox.config import config_to_dotlist
-from aibox.utils import as_path
+from ueid.utils.config import config_to_dotlist
+from ueid.utils import as_path, as_uri
+
 
 try:
-    import ray.train as ray_train
+    import ray.train as ray_train  # pyright: ignore
 except ImportError:
     ray_train = None
+
+
+class BestMonitor:
+    def __init__(self, name: str, op: Literal["min", "max"]):
+        monitor_ops = {"min": torch.lt, "max": torch.gt}
+        self.op = monitor_ops[op]
+        self.best = None
+
+    def __call__(self, value):
+        """
+        Returns true if the value is changed
+        """
+        if value is None:
+            return False
+        if self.best is None or self.op(value if torch.is_tensor(value) else torch.tensor(value), self.best):
+            self.best = value
+            return True
+        return False
+
 
 try:
     import shutil
@@ -92,19 +116,37 @@ try:
 
         def __init__(
             self,
-            local_log_root=None,
+            local_log_uri,
+            artifact_location,
             tb_log_graph=True,
             enable_tb_logging=False,
+            enable_ray_train=False,
+            track_best_of_metrics: dict[str, Literal["min", "max"]] = {},
             **kwargs,
         ):
-            self.local_log_root = as_path(local_log_root or "logs")
+            self.local_log_uri = as_uri(local_log_uri)
+            self.artifact_location = artifact_location
             self.enable_tb_logging = enable_tb_logging
-            self._tensorboard_logdir = (self.local_log_root / "tbruns").expanduser().resolve()
-            if "tracking_uri" not in kwargs:
-                mlflow_logdir = f"file:{self.local_log_root / 'mlruns'}"
-                kwargs.update(tracking_uri=mlflow_logdir)
+            self.track_best_of_metrics = track_best_of_metrics
+            self.monitors: dict[str, BestMonitor] = {}
 
-            if ray_train is not None:
+            self._tensorboard_logdir = (
+                as_path(self.local_log_uri) / "tbruns"
+                if self.local_log_uri is not None and self.enable_tb_logging
+                else as_path("./logs/tbruns")
+            )
+            if "tracking_uri" not in kwargs:
+                kwargs.update(
+                    tracking_uri=self.local_log_uri,
+                )
+
+            if self.local_log_uri[:4] != "file":
+                artifact_location = as_path(artifact_location)
+                if "mlruns" not in set(artifact_location.parts):
+                    artifact_location = artifact_location / "mlruns"
+                kwargs.update(artifact_location=artifact_location.as_posix())
+
+            if enable_ray_train and ray_train is not None:
                 if kwargs.get("run_name", None) is None:
                     try:
                         trial_name = ray_train.get_context().get_trial_name()
@@ -118,6 +160,8 @@ try:
                             pass
                     except Exception:
                         pass
+            elif os.environ.get("SLURM_JOB_NAME") is not None:
+                kwargs.update(run_name=f"{os.environ.get('SLURM_JOB_NAME')}-{str(uuid.uuid4())[:4]}")
 
             super().__init__(**kwargs)
 
@@ -142,10 +186,30 @@ try:
             super().log_hyperparams(params)
 
         @rank_zero_only
-        def log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
+        def _track_best(self, metrics: Mapping[str, float]):
+            changed = {}
+            for k, op in self.track_best_of_metrics.items():
+                for m, val in metrics.items():
+                    if k in m:
+                        if m not in self.monitors:
+                            self.monitors[m] = BestMonitor(m, op)
+                        if self.monitors[m](val):
+                            changed[f"{m}_{op}"] = self.monitors[m].best
+            if len(changed) > 0:
+                super().log_metrics(changed)
+                if self.enable_tb_logging and self._tb_logger is not None:
+                    self._tb_logger.log_metrics(changed)
+
+        @rank_zero_only
+        def log_metrics(
+            self,
+            metrics: Mapping[str, float],
+            step: int | None = None,
+        ) -> None:
             super().log_metrics(metrics, step)
             if self.enable_tb_logging and self._tb_logger is not None:
                 self._tb_logger.log_metrics(metrics, step)
+            self._track_best(metrics)
 
         @rank_zero_only
         def log_artifact(
@@ -171,23 +235,49 @@ try:
         @rank_zero_only
         def log_image(
             self,
-            tag: str,
             image: np.ndarray | torch.Tensor,
-            global_step=None,
+            *,
+            tag: str | None = None,
+            artifact_file: str | None = None,
+            global_step: int | None = None,
             dataformats="CHW",
         ):
+            """
+            Args:
+                tag: relative to where image will be saved as jpeg
+            """
+            if tag is None and artifact_file is None:
+                logging.warning("One of tag or artifact file must be provided in order to log image")
+                return
+
             if self.enable_tb_logging and self._tb_logger is not None:
-                self.tb_writer.add_image(tag, image, global_step, dataformats)
+                self.tb_writer.add_image(
+                    # tb_tag if tb_tag is not None else Path(artifact_file).stem,
+                    tag,
+                    image,
+                    global_step=global_step,
+                    dataformats=dataformats,
+                )
 
             if isinstance(image, torch.Tensor):
                 image = torchvision.transforms.ToPILImage()(image.detach().cpu())
 
-            # run_id: str, image: Union["numpy.ndarray", "PIL.Image.Image"], artifact_file: str
-            self.mlflow_client.log_image(
-                self.run_id,
-                image,
-                artifact_file=f"{tag}.png",
-            )
+            if artifact_file is not None:
+                self.mlflow_client.log_image(
+                    self.run_id,
+                    image,
+                    artifact_file=str(Path("images") / artifact_file),
+                )
+                return
+
+            if tag is not None:
+                self.mlflow_client.log_image(
+                    self.run_id,
+                    image,
+                    step=global_step,
+                    key=f"{tag}",
+                    synchronous=False,  # TODO: double check this
+                )
 
         @rank_zero_only
         def log_tags(self, tags: dict[str, Any]):
@@ -221,6 +311,7 @@ try:
                         shutil.rmtree(parent)
             except Exception:
                 pass
+
 
 except ImportError as e:
     print(f"Logging import error: {e}")
