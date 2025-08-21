@@ -18,7 +18,7 @@ from aibox.config import (
 from aibox.logger import get_logger
 from aibox.torch.utils import get_device
 from aibox.utils import as_path
-from mlflow.entities import Run
+from mlflow.entities import Run, experiment
 from mlflow.store.entities.paged_list import PagedList
 
 LOGGER = get_logger(__name__)
@@ -423,7 +423,7 @@ def fix_mlflow_artifact_paths(mlflow_root: Path):
                 )
 
 
-def fix_mlflow_artifact_uri_sqlite(mlflow_root: Path, db_path: str | Path):
+def fix_mlflow_artifact_uri_sqlite(mlflow_root: Path, db_path: str | Path, root_name="mlruns"):
     from sqlalchemy import create_engine, text
 
     db_path = as_path(db_path)
@@ -436,12 +436,43 @@ def fix_mlflow_artifact_uri_sqlite(mlflow_root: Path, db_path: str | Path):
     engine = create_engine(f"sqlite:///{db_path}")
     with engine.connect() as connection:
         LOGGER.info(f"Connected to {db_path.name}")
+        experiments = connection.execute(text("select experiment_id, name, artifact_location from experiments;"))
+        if experiments.rowcount >= 0:
+            LOGGER.info(f"Found {experiments.rowcount} experiments")
+        for exp in experiments:
+            data = exp._asdict()
+            uri = list(as_path(data["artifact_location"]).parts)
+
+            try:
+                idx = uri.index(root_name)
+            except ValueError:
+                LOGGER.error(f"Unable to update experiment {data['name']} - {root_name} not found in artifact_location")
+                continue
+
+            new = as_path(mlflow_root).joinpath(*uri[idx + 1 :])
+            res = connection.execute(
+                text(
+                    "update experiments set artifact_location = :artifact_location where experiment_id = :experiment_id;"
+                ).bindparams(experiment_id=f"{data['experiment_id']}", artifact_location=f"{new}"),
+            )
+            if res.rowcount > 0:
+                LOGGER.info(f"Updated experiment {data['name']} ({data['experiment_id']}) to {new}")
+            else:
+                LOGGER.error(f"Unable to update experiment {data['name']}")
+
         runs = connection.execute(text("select run_uuid, name, artifact_uri from runs;"))
-        LOGGER.info(f"Found {runs.rowcount} runs")
-        for run in runs:
-            data = run._asdict()
+
+        if runs.rowcount >= 0:
+            LOGGER.info(f"Found {runs.rowcount} runs")
+
+        for exp in runs:
+            data = exp._asdict()
             uri = list(as_path(data["artifact_uri"]).parts)
-            idx = uri.index("mlruns")
+            try:
+                idx = uri.index(root_name)
+            except ValueError:
+                LOGGER.error(f"Unable to update run {data['name']} - {root_name} not found in artifact_location")
+                continue
             new = as_path(mlflow_root).joinpath(*uri[idx + 1 :])
             res = connection.execute(
                 text("update runs set artifact_uri = :artifact_uri where run_uuid = :run_uuid;").bindparams(
@@ -452,6 +483,7 @@ def fix_mlflow_artifact_uri_sqlite(mlflow_root: Path, db_path: str | Path):
                 LOGGER.info(f"Updated run {data['name']} ({data['run_uuid']}) to {new}")
             else:
                 LOGGER.error(f"Unable to update run {data['name']}")
+
         connection.commit()
 
     LOGGER.info("Done")

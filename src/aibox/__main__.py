@@ -3,7 +3,6 @@ from typing import Annotated
 
 import typer
 
-from aibox.mlflow import fix_mlflow_artifact_uri_sqlite
 from aibox.utils import Err, Ok, get_dirs, print
 from returns.result import safe
 
@@ -40,22 +39,34 @@ def find_mlruns_folders(root: Path, recurse: bool) -> list[Path]:
     + "Can optionally recurse into subfolders looking for all mlruns folders.",
 )
 def mlflow(
-    root: Annotated[Path, typer.Argument(..., help="Path to directory that contains the mlruns folder")] = Path.cwd(),
+    root: Annotated[Path, typer.Argument(..., help="Path to mlruns directory (target directory)")] = Path.cwd()
+    / "logs"
+    / "mlruns",
     db: Annotated[
         Path | None,
         typer.Option(..., help="Path to sqlite DB to update its artifact_uri to where the root param specifies"),
     ] = None,
+    root_name: Annotated[
+        str,
+        typer.Option(
+            "--root-name",
+            "-n",
+            help="Name of the root directory to replace up to in the existing paths, when using sqlite db.",
+        ),
+    ] = "mlruns",
     recurse: Annotated[
         bool, typer.Option("--recurse", "-r", help="Recurse into subfolders looking for mlruns folders")
     ] = False,
 ):
+    from aibox.mlflow import fix_mlflow_artifact_uri_sqlite
+
     try:
         from aibox.mlflow import fix_mlflow_artifact_paths
     except ImportError:
         raise ImportError("mlflow package is not installed. Please install it with `pip install mlflow`")
 
     if db is not None:
-        fix_mlflow_artifact_uri_sqlite(root, db)
+        fix_mlflow_artifact_uri_sqlite(root, db, root_name)
         return
 
     res = find_mlruns_folders(root, recurse)
